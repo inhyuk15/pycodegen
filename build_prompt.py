@@ -276,27 +276,29 @@ def build_context_string(sample: dict, mode: str) -> str:
 
 
 def inject_context(original_prompt: str, context: str) -> str:
-    """Insert *context* into *original_prompt* immediately before ``Input Code:``.
+    """Inject dependency context and body-only instruction into the prompt."""
+    prompt = original_prompt
 
-    If *context* is empty or the marker is missing the prompt is returned
-    unchanged.
-    """
-    if not context:
-        return original_prompt
+    # Insert context block before "Input Code:" if available.
+    if context:
+        marker = "Input Code:"
+        idx = prompt.find(marker)
+        if idx != -1:
+            context_block = (
+                "Relevant context:\n"
+                "```python\n"
+                f"{context}\n"
+                "```\n\n"
+            )
+            prompt = prompt[:idx] + context_block + prompt[idx:]
 
-    marker = "Input Code:"
-    idx = original_prompt.find(marker)
-    if idx == -1:
-        return original_prompt
-
-    context_block = (
-        "Relevant context:\n"
-        "```python\n"
-        f"{context}\n"
-        "```\n\n"
+    # Replace "Completed Code:" with instruction to output body only.
+    prompt = prompt.replace(
+        "Completed Code:",
+        "Completed Code (output only the function body, without the def line, docstring, or any import statements):",
     )
 
-    return original_prompt[:idx] + context_block + original_prompt[idx:]
+    return prompt
 
 
 # ---------------------------------------------------------------------------
