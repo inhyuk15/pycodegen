@@ -1,0 +1,365 @@
+"""Build dependency-aware prompts for the DevEval benchmark.
+
+Reads DevEval's ``data.jsonl`` to discover each target function's declared
+dependencies (``intra_class``, ``intra_file``, ``cross_file``), extracts the
+actual source of those dependency **functions** via AST parsing, and injects
+the extracted code as context into the original prompt file.
+
+Two prompt variants are produced:
+
+* ``prompt_sig_doc.jsonl``   -- signature + docstring only
+* ``prompt_full_body.jsonl`` -- full function body
+
+No external retriever (BM25, DAR, etc.) is required because DevEval already
+provides ground-truth dependency information.
+
+Usage::
+
+    python build_prompt.py
+"""
+
+from __future__ import annotations
+
+import ast
+import json
+import os
+import textwrap
+import warnings
+from pathlib import Path
+from typing import Optional
+
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
+
+BASE_DIR = Path(__file__).parent
+DEVEVAL_DIR = BASE_DIR / "DevEval"
+SOURCE_CODE_DIR = DEVEVAL_DIR / "Source_Code"
+DATA_JSONL = DEVEVAL_DIR / "data.jsonl"
+PROMPT_FILE = (
+    DEVEVAL_DIR
+    / "Experiments"
+    / "prompt"
+    / "without_context"
+    / "gpt-4-1106_prompt.jsonl"
+)
+OUTPUT_DIR = BASE_DIR / "output"
+
+# Directories to skip during fallback file search.
+_SKIP_DIRS = frozenset({"__pycache__", ".git", ".eggs", "node_modules", ".tox"})
+
+# ---------------------------------------------------------------------------
+# Symbol resolution
+# ---------------------------------------------------------------------------
+
+
+def resolve_symbol_file(
+    repo_path: str,
+    symbol: str,
+) -> tuple[Optional[str], Optional[str]]:
+    """Map a dotted symbol name to a concrete ``.py`` file path.
+
+    The function tries three strategies in order:
+
+    1. Convert dot-separated module parts into a path relative to the
+       repository root (and ``src/`` if present), checking for both
+       ``<module>.py`` and ``<module>/__init__.py``.
+    2. Repeat the above under a ``src/`` prefix commonly used by modern
+       Python projects (e.g. Jinja2).
+    3. **Fallback** -- walk the repository tree and locate the first file
+       whose stem matches the first component of *symbol*
+       (e.g. ``check_dummies.DUMMY_CLASS`` -> ``check_dummies.py``).
+
+    Returns:
+        A ``(file_path, remainder)`` tuple where *remainder* is the
+        dot-separated portion of *symbol* that was **not** consumed by the
+        file path resolution (i.e. the name to look up inside the file).
+        Returns ``(None, None)`` when resolution fails.
+    """
+    parts = symbol.split(".")
+
+    search_roots = [repo_path]
+    src_path = os.path.join(repo_path, "src")
+    if os.path.isdir(src_path):
+        search_roots.append(src_path)
+
+    for root in search_roots:
+        for i in range(len(parts), 0, -1):
+            candidate = os.path.join(root, "/".join(parts[:i]) + ".py")
+            if os.path.isfile(candidate):
+                remainder = ".".join(parts[i:]) if i < len(parts) else ""
+                return candidate, remainder
+
+            candidate_init = os.path.join(root, "/".join(parts[:i]), "__init__.py")
+            if os.path.isfile(candidate_init):
+                remainder = ".".join(parts[i:]) if i < len(parts) else ""
+                return candidate_init, remainder
+
+    # Fallback: match by filename anywhere in the repo.
+    target_filename = parts[0] + ".py"
+    for dirpath, dirnames, filenames in os.walk(repo_path):
+        dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]
+        if target_filename in filenames:
+            found = os.path.join(dirpath, target_filename)
+            remainder = ".".join(parts[1:]) if len(parts) > 1 else ""
+            return found, remainder
+
+    return None, None
+
+
+# ---------------------------------------------------------------------------
+# AST extraction
+# ---------------------------------------------------------------------------
+
+
+def extract_function_from_ast(
+    file_path: str,
+    symbol_name: str,
+    mode: str = "full",
+) -> Optional[str]:
+    """Extract a function definition from *file_path* by its name.
+
+    Only ``FunctionDef`` and ``AsyncFunctionDef`` nodes are considered.
+    Classes and module-level variables are intentionally ignored.
+
+    Args:
+        file_path: Absolute path to the Python source file.
+        symbol_name: Name of the function to extract.  May be in
+            ``ClassName.method_name`` form for methods defined inside a class.
+        mode: One of ``"full"`` (complete source) or ``"sig_doc"``
+            (signature + docstring + ellipsis placeholder).
+
+    Returns:
+        The extracted source fragment as a string, or ``None`` if the symbol
+        could not be found.
+    """
+    try:
+        with open(file_path, "r", encoding="utf-8", errors="replace") as fh:
+            source = fh.read()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", SyntaxWarning)
+            tree = ast.parse(source)
+    except (SyntaxError, UnicodeDecodeError):
+        return None
+
+    source_lines = source.splitlines()
+
+    if not symbol_name:
+        return None
+
+    parts = symbol_name.split(".")
+    target_name = parts[0]
+    sub_name = parts[1] if len(parts) > 1 else None
+
+    for node in ast.walk(tree):
+        # Top-level function.
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if node.name == target_name and sub_name is None:
+                return _format_function(node, source_lines, mode)
+
+        # Method inside a class.
+        elif isinstance(node, ast.ClassDef):
+            if node.name == target_name and sub_name is not None:
+                for child in node.body:
+                    if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        if child.name == sub_name:
+                            return _format_function(child, source_lines, mode)
+
+    return None
+
+
+def _format_function(
+    node: ast.AST,
+    source_lines: list[str],
+    mode: str,
+) -> Optional[str]:
+    """Format an AST function node according to *mode*.
+
+    Args:
+        node: An ``ast.FunctionDef`` or ``ast.AsyncFunctionDef`` node.
+        source_lines: The full source file split into lines.
+        mode: ``"full"`` for the complete source, ``"sig_doc"`` for
+            signature + docstring + ``...``.
+    """
+    if mode == "full":
+        lines = source_lines[node.lineno - 1 : node.end_lineno]
+        return textwrap.dedent("\n".join(lines))
+
+    if mode == "sig_doc":
+        # Collect the (possibly multi-line) signature.
+        sig_line = source_lines[node.lineno - 1]
+        sig_lines = [sig_line]
+        idx = node.lineno
+        while not sig_line.rstrip().endswith(":") and idx < len(source_lines):
+            sig_line = source_lines[idx]
+            sig_lines.append(sig_line)
+            idx += 1
+
+        result = textwrap.dedent("\n".join(sig_lines))
+
+        docstring = ast.get_docstring(node)
+        if docstring:
+            result += '\n    """' + docstring + '"""'
+
+        result += "\n    ..."
+        return result
+
+    return None
+
+
+# ---------------------------------------------------------------------------
+# High-level helpers
+# ---------------------------------------------------------------------------
+
+
+def extract_dependency_code(
+    project_path: str,
+    symbol: str,
+    mode: str,
+) -> Optional[str]:
+    """Resolve a DevEval dependency symbol and extract its source.
+
+    Args:
+        project_path: Repository sub-path as recorded in ``data.jsonl``
+            (e.g. ``"Internet/Jinja2"``).
+        symbol: Fully-qualified dependency symbol
+            (e.g. ``"jinja2.meta.TrackingCodeGenerator.__init__"``).
+        mode: ``"full"`` or ``"sig_doc"``.
+
+    Returns:
+        Extracted source string, or ``None`` on failure.
+    """
+    repo_path = str(SOURCE_CODE_DIR / project_path)
+    if not os.path.isdir(repo_path):
+        return None
+
+    file_path, remainder = resolve_symbol_file(repo_path, symbol)
+    if file_path is None:
+        return None
+
+    return extract_function_from_ast(file_path, remainder, mode)
+
+
+def build_context_string(sample: dict, mode: str) -> str:
+    """Collect all dependency code blocks for a single sample.
+
+    Iterates over ``intra_class``, ``intra_file``, and ``cross_file``
+    dependencies, extracts each one, and joins the results into a single
+    context string.  Duplicates are removed while preserving order.
+    """
+    dep = sample["dependency"]
+    project_path = sample["project_path"]
+
+    all_symbols = (
+        dep.get("intra_class", [])
+        + dep.get("intra_file", [])
+        + dep.get("cross_file", [])
+    )
+
+    if not all_symbols:
+        return ""
+
+    seen: set[str] = set()
+    unique_symbols: list[str] = []
+    for s in all_symbols:
+        if s not in seen:
+            seen.add(s)
+            unique_symbols.append(s)
+
+    code_blocks: list[str] = []
+    for sym in unique_symbols:
+        code = extract_dependency_code(project_path, sym, mode)
+        if code:
+            code_blocks.append(code)
+
+    return "\n\n".join(code_blocks)
+
+
+def inject_context(original_prompt: str, context: str) -> str:
+    """Insert *context* into *original_prompt* immediately before ``Input Code:``.
+
+    If *context* is empty or the marker is missing the prompt is returned
+    unchanged.
+    """
+    if not context:
+        return original_prompt
+
+    marker = "Input Code:"
+    idx = original_prompt.find(marker)
+    if idx == -1:
+        return original_prompt
+
+    context_block = (
+        "Relevant context:\n"
+        "```python\n"
+        f"{context}\n"
+        "```\n\n"
+    )
+
+    return original_prompt[:idx] + context_block + original_prompt[idx:]
+
+
+# ---------------------------------------------------------------------------
+# CLI entry point
+# ---------------------------------------------------------------------------
+
+
+def main() -> None:
+    """Generate two prompt variants and write them to ``output/``."""
+    OUTPUT_DIR.mkdir(exist_ok=True)
+
+    # Load DevEval metadata.
+    print("Loading data.jsonl...")
+    data_map: dict[str, dict] = {}
+    with open(DATA_JSONL, "r") as f:
+        for line in f:
+            sample = json.loads(line)
+            data_map[sample["namespace"]] = sample
+
+    # Load base prompts.
+    print(f"Loading prompts from {PROMPT_FILE.name}...")
+    prompts: list[dict] = []
+    with open(PROMPT_FILE, "r") as f:
+        for line in f:
+            prompts.append(json.loads(line))
+
+    print(f"  samples: {len(data_map)}, prompts: {len(prompts)}")
+
+    # Generate both variants.
+    variants = [
+        ("sig_doc", "prompt_sig_doc.jsonl"),
+        ("full", "prompt_full_body.jsonl"),
+    ]
+
+    for mode, out_name in variants:
+        out_path = OUTPUT_DIR / out_name
+        print(f"\nGenerating {out_name} (mode={mode})...")
+
+        total = 0
+        with_context = 0
+
+        with open(out_path, "w") as fout:
+            for prompt_entry in prompts:
+                ns = prompt_entry["namespace"]
+                sample = data_map.get(ns)
+
+                if sample is None:
+                    fout.write(json.dumps(prompt_entry, ensure_ascii=False) + "\n")
+                    total += 1
+                    continue
+
+                context = build_context_string(sample, mode)
+                new_prompt = inject_context(prompt_entry["prompt"], context)
+
+                output_entry = {"namespace": ns, "prompt": new_prompt}
+                fout.write(json.dumps(output_entry, ensure_ascii=False) + "\n")
+                total += 1
+                if context:
+                    with_context += 1
+
+        print(f"  Done: {total} prompts, {with_context} with context injected")
+        print(f"  Saved to {out_path}")
+
+
+if __name__ == "__main__":
+    main()
