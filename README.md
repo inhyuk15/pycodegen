@@ -1,10 +1,24 @@
 # DevEval AST Context Prompt Builder
 
-Extracts dependency function source code via AST parsing using DevEval's ground-truth dependency annotations, and injects it as context into code completion prompts. No retriever (BM25, DAR, etc.) is needed — dependencies are already specified in `data.jsonl`.
+Extracts dependency source code (functions, classes, variables) via AST parsing using DevEval's ground-truth dependency annotations, and injects it as context into code completion prompts. No retriever (BM25, DAR, etc.) is needed — dependencies are already specified in `data.jsonl`.
 
-Two prompt variants are generated:
-- **sig_doc** — dependency function signatures + docstrings only
-- **full_body** — complete dependency function source code
+## Prompt Variants
+
+Function/method mode and class mode are independently configurable:
+
+| Variant | func_mode | class_mode | Description |
+|---|---|---|---|
+| `func-sd_class-sd` | sig_doc | sig_doc | Signatures + docstrings only |
+| `func-sd_class-full` | sig_doc | full | Function signatures, full class source |
+| `func-full_class-sd` | full | sig_doc | Full function source, class signatures |
+| `func-full_class-full` | full | full | Full source for everything |
+
+- **sig_doc (functions)** — signature + docstring + `...`
+- **sig_doc (classes)** — class signature + docstring + member signatures + class-level attributes
+- **full** — complete source code
+- **variables/constants** — always emitted as-is (assignment statement)
+
+Samples with no dependencies are filtered out (`data_filtered.jsonl`) since they are identical to DevEval's `without_context` baseline.
 
 ## Setup
 
@@ -29,17 +43,27 @@ echo "sk-YOUR_KEY" > api_key.txt
 
 ## Usage
 
-### 1. Build prompts
+### 1. Filter data
+
+```bash
+python filter_data.py
+```
+
+Filters `DevEval/data.jsonl` → `data_filtered.jsonl` (1,323 samples with dependencies). Samples with no dependencies are excluded since they are identical to the without_context baseline.
+
+### 2. Build prompts
 
 ```bash
 python build_prompt.py
 ```
 
-### 2. Run inference
+Reads `data_filtered.jsonl` and generates four prompt variants under `output/`.
+
+### 3. Run inference
 
 ```bash
 MODEL=gpt-5.4-mini
-VARIANT=sig_doc  # or full_body
+VARIANT=func-sd_class-sd  # or func-sd_class-full, func-full_class-sd, func-full_class-full
 
 python inference.py \
     --prompt_file output/prompt_${VARIANT}.jsonl \
@@ -59,7 +83,7 @@ python inference.py \
     --limit 10
 ```
 
-### 3. Evaluate
+### 4. Evaluate
 
 ```bash
 python DevEval/pass_k.py \
@@ -67,4 +91,23 @@ python DevEval/pass_k.py \
     --log_file DevEval/Experiments/${VARIANT}/${MODEL}/log.jsonl \
     --source_code_root DevEval/Source_Code \
     --data_file DevEval/data.jsonl
+```
+
+## File Structure
+
+```
+.
+├── filter_data.py           # Filter data.jsonl → data_filtered.jsonl
+├── build_prompt.py          # Prompt builder (AST extraction + context injection)
+├── inference.py             # LLM inference runner
+├── data_filtered.jsonl      # (generated) DevEval samples with dependencies only (1,323/1,825)
+├── output/                  # Generated prompt variants
+│   ├── prompt_func-sd_class-sd.jsonl
+│   ├── prompt_func-sd_class-full.jsonl
+│   ├── prompt_func-full_class-sd.jsonl
+│   └── prompt_func-full_class-full.jsonl
+├── DevEval/                 # External (cloned separately)
+│   ├── data.jsonl
+│   └── Source_Code/
+└── requirements.txt
 ```
