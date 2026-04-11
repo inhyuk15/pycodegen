@@ -31,6 +31,7 @@ import json
 import os
 import textwrap
 import warnings
+from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
@@ -118,8 +119,13 @@ def resolve_symbol_file(
 # ---------------------------------------------------------------------------
 
 
+@lru_cache(maxsize=None)
 def _parse_file(file_path: str) -> tuple[Optional[str], Optional[ast.Module]]:
-    """Read and parse a Python source file, returning ``(source, tree)``."""
+    """Read and parse a Python source file, returning ``(source, tree)``.
+
+    Results are cached so that repeated lookups into the same file
+    (common when multiple symbols come from one module) skip I/O and parsing.
+    """
     try:
         with open(file_path, "r", encoding="utf-8", errors="replace") as fh:
             source = fh.read()
