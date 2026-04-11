@@ -18,7 +18,7 @@ import time
 from openai import AsyncOpenAI
 from tqdm import tqdm
 
-DEFAULT_CONCURRENCY = 20
+DEFAULT_CONCURRENCY = 5
 
 
 def clean_completion(code: str) -> str:

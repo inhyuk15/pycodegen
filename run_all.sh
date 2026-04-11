@@ -13,11 +13,14 @@ DATA_FILE="${DEVEVAL_DIR}/data.jsonl"
 # -------------------------------------------------------
 # 1. Filter data & build prompts
 # -------------------------------------------------------
-echo "=== Filtering data ==="
+echo "=== Stage 1: Filter data.jsonl ==="
 python filter_data.py
 
 echo "=== Building prompts ==="
 python build_prompt.py
+
+echo "=== Stage 2: Filter baseline prompts ==="
+python filter_data.py --stage2
 
 # -------------------------------------------------------
 # 2. Define the 4 experiments

@@ -98,7 +98,8 @@ python DevEval/pass_k.py \
 ```
 .
 ├── filter_data.py           # Filter data.jsonl → data_filtered.jsonl
-├── build_prompt.py          # Prompt builder (AST extraction + context injection)
+├── ast_extractor.py         # AST-based symbol resolution & source extraction
+├── build_prompt.py          # Prompt builder (context injection using ast_extractor)
 ├── inference.py             # LLM inference runner
 ├── data_filtered.jsonl      # (generated) DevEval samples with dependencies only (1,323/1,825)
 ├── output/                  # Generated prompt variants

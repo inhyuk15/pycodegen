@@ -1,23 +1,7 @@
 """Build dependency-aware prompts for the DevEval benchmark.
 
-Reads DevEval's ``data.jsonl`` to discover each target function's declared
-dependencies (``intra_class``, ``intra_file``, ``cross_file``), extracts the
-actual source of those dependency symbols via AST parsing, and injects
-the extracted code as context into the original prompt file.
-
-Supported symbol types:
-
-* **Functions / methods** -- controlled by ``func_mode`` (``"full"`` or
-  ``"sig_doc"``).
-* **Classes** -- controlled by ``class_mode`` (``"full"`` or ``"sig_doc"``).
-  In ``"sig_doc"`` mode the class signature, docstring, and member
-  signatures are emitted.
-* **Variables / constants** -- always emitted as-is (assignment statement).
-
-The two mode axes are independent, giving four possible prompt variants.
-
-No external retriever (BM25, DAR, etc.) is required because DevEval already
-provides ground-truth dependency information.
+Reads DevEval's ``data.jsonl``, uses AST extraction (from ast_extractor.py) to get
+dependency source code, and injects it as context into the prompt file.
 
 Usage::
 
@@ -26,14 +10,17 @@ Usage::
 
 from __future__ import annotations
 
-import ast
 import json
 import os
-import textwrap
-import warnings
-from functools import lru_cache
 from pathlib import Path
 from typing import Optional
+
+from ast_extractor import (
+    extract_symbol_from_ast,
+    find_used_attrs_on_module,
+    resolve_module_local_name,
+    resolve_symbol_file,
+)
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -52,357 +39,9 @@ PROMPT_FILE = (
 )
 OUTPUT_DIR = BASE_DIR / "output"
 
-# Directories to skip during fallback file search.
-_SKIP_DIRS = frozenset({"__pycache__", ".git", ".eggs", "node_modules", ".tox"})
-
 # ---------------------------------------------------------------------------
-# Symbol resolution
+# Dependency extraction (bridges ast_extractor.py)
 # ---------------------------------------------------------------------------
-
-
-def resolve_symbol_file(
-    repo_path: str,
-    symbol: str,
-) -> tuple[Optional[str], Optional[str]]:
-    """Map a dotted symbol name to a concrete ``.py`` file path.
-
-    The function tries three strategies in order:
-
-    1. Convert dot-separated module parts into a path relative to the
-       repository root (and ``src/`` if present), checking for both
-       ``<module>.py`` and ``<module>/__init__.py``.
-    2. Repeat the above under a ``src/`` prefix commonly used by modern
-       Python projects (e.g. Jinja2).
-    3. **Fallback** -- walk the repository tree and locate the first file
-       whose stem matches the first component of *symbol*
-       (e.g. ``check_dummies.DUMMY_CLASS`` -> ``check_dummies.py``).
-
-    Returns:
-        A ``(file_path, remainder)`` tuple where *remainder* is the
-        dot-separated portion of *symbol* that was **not** consumed by the
-        file path resolution (i.e. the name to look up inside the file).
-        Returns ``(None, None)`` when resolution fails.
-    """
-    parts = symbol.split(".")
-
-    search_roots = [repo_path]
-    src_path = os.path.join(repo_path, "src")
-    if os.path.isdir(src_path):
-        search_roots.append(src_path)
-
-    for root in search_roots:
-        for i in range(len(parts), 0, -1):
-            candidate = os.path.join(root, "/".join(parts[:i]) + ".py")
-            if os.path.isfile(candidate):
-                remainder = ".".join(parts[i:]) if i < len(parts) else ""
-                return candidate, remainder
-
-            candidate_init = os.path.join(root, "/".join(parts[:i]), "__init__.py")
-            if os.path.isfile(candidate_init):
-                remainder = ".".join(parts[i:]) if i < len(parts) else ""
-                return candidate_init, remainder
-
-    # Fallback: match by filename anywhere in the repo.
-    target_filename = parts[0] + ".py"
-    for dirpath, dirnames, filenames in os.walk(repo_path):
-        dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]
-        if target_filename in filenames:
-            found = os.path.join(dirpath, target_filename)
-            remainder = ".".join(parts[1:]) if len(parts) > 1 else ""
-            return found, remainder
-
-    return None, None
-
-
-# ---------------------------------------------------------------------------
-# AST extraction
-# ---------------------------------------------------------------------------
-
-
-@lru_cache(maxsize=None)
-def _parse_file(file_path: str) -> tuple[Optional[str], Optional[ast.Module]]:
-    """Read and parse a Python source file, returning ``(source, tree)``.
-
-    Results are cached so that repeated lookups into the same file
-    (common when multiple symbols come from one module) skip I/O and parsing.
-    """
-    try:
-        with open(file_path, "r", encoding="utf-8", errors="replace") as fh:
-            source = fh.read()
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", SyntaxWarning)
-            tree = ast.parse(source)
-        return source, tree
-    except (SyntaxError, UnicodeDecodeError):
-        return None, None
-
-
-def extract_symbol_from_ast(
-    file_path: str,
-    symbol_name: str,
-    func_mode: str = "full",
-    class_mode: str = "full",
-) -> Optional[str]:
-    """Extract any symbol (function, class, or variable) from *file_path*.
-
-    Args:
-        file_path: Absolute path to the Python source file.
-        symbol_name: Name of the symbol to extract.  May be in
-            ``ClassName.method_name`` form for methods defined inside a class.
-        func_mode: ``"full"`` or ``"sig_doc"`` -- controls function/method
-            rendering.
-        class_mode: ``"full"`` or ``"sig_doc"`` -- controls class rendering.
-            In ``"sig_doc"`` mode the class signature, docstring, and member
-            signatures are emitted.
-
-    Returns:
-        The extracted source fragment as a string, or ``None`` if the symbol
-        could not be found.
-    """
-    source, tree = _parse_file(file_path)
-    if source is None or tree is None:
-        return None
-
-    source_lines = source.splitlines()
-
-    if not symbol_name:
-        return None
-
-    parts = symbol_name.split(".")
-    target_name = parts[0]
-    sub_name = parts[1] if len(parts) > 1 else None
-
-    for node in ast.walk(tree):
-        # -- Functions / async functions (top-level) --
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            if node.name == target_name and sub_name is None:
-                return _format_function(node, source_lines, func_mode)
-
-        # -- Classes --
-        elif isinstance(node, ast.ClassDef):
-            if node.name == target_name:
-                if sub_name is None:
-                    # Class itself is the target.
-                    return _format_class(node, source_lines, class_mode)
-                # Method inside the class.
-                for child in node.body:
-                    if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                        if child.name == sub_name:
-                            return _format_function(child, source_lines, func_mode)
-                # Class-level attribute (assignment / annotation).
-                attr = _extract_class_attribute(node, source_lines, sub_name)
-                if attr is not None:
-                    return attr
-
-    # -- Variable / constant (module-level assignment) --
-    return _extract_variable(tree, source_lines, target_name, sub_name)
-
-
-# -- Formatting helpers -----------------------------------------------------
-
-
-def _node_source(node: ast.AST, source_lines: list[str]) -> str:
-    """Return the dedented source text for an AST node."""
-    lines = source_lines[node.lineno - 1 : node.end_lineno]
-    return textwrap.dedent("\n".join(lines))
-
-
-def _format_function(
-    node: ast.AST,
-    source_lines: list[str],
-    mode: str,
-) -> Optional[str]:
-    """Format a function/method node.
-
-    ``"full"``: complete source.
-    ``"sig_doc"``: signature + docstring + ``...``.
-    """
-    if mode == "full":
-        return _node_source(node, source_lines)
-
-    if mode == "sig_doc":
-        sig_line = source_lines[node.lineno - 1]
-        sig_lines = [sig_line]
-        idx = node.lineno
-        while not sig_line.rstrip().endswith(":") and idx < len(source_lines):
-            sig_line = source_lines[idx]
-            sig_lines.append(sig_line)
-            idx += 1
-
-        result = textwrap.dedent("\n".join(sig_lines))
-
-        docstring = ast.get_docstring(node)
-        if docstring:
-            result += '\n    """' + docstring + '"""'
-
-        result += "\n    ..."
-        return result
-
-    return None
-
-
-def _format_class(
-    node: ast.ClassDef,
-    source_lines: list[str],
-    mode: str,
-) -> Optional[str]:
-    """Format a class node.
-
-    ``"full"``: complete class source.
-    ``"sig_doc"``: class signature + docstring + member signatures.
-    """
-    if mode == "full":
-        return _node_source(node, source_lines)
-
-    if mode == "sig_doc":
-        # Class definition line (may span multiple lines for bases/keywords).
-        sig_line = source_lines[node.lineno - 1]
-        sig_lines = [sig_line]
-        idx = node.lineno
-        while not sig_line.rstrip().endswith(":") and idx < len(source_lines):
-            sig_line = source_lines[idx]
-            sig_lines.append(sig_line)
-            idx += 1
-
-        result = textwrap.dedent("\n".join(sig_lines))
-
-        # Class docstring.
-        docstring = ast.get_docstring(node)
-        if docstring:
-            result += '\n    """' + docstring + '"""'
-
-        # Member signatures.
-        for child in node.body:
-            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                member_sig = _format_function(child, source_lines, "sig_doc")
-                if member_sig:
-                    result += "\n" + textwrap.indent(member_sig, "    ")
-            elif isinstance(child, (ast.Assign, ast.AnnAssign)):
-                result += "\n    " + _node_source(child, source_lines).strip()
-
-        return result
-
-    return None
-
-
-def _extract_variable(
-    tree: ast.Module,
-    source_lines: list[str],
-    target_name: str,
-    sub_name: Optional[str],
-) -> Optional[str]:
-    """Extract a module-level variable assignment by name."""
-    for node in ast.iter_child_nodes(tree):
-        if isinstance(node, ast.Assign):
-            for target in node.targets:
-                name = _assign_target_name(target)
-                if name == target_name:
-                    return _node_source(node, source_lines)
-        elif isinstance(node, ast.AnnAssign) and node.target:
-            name = _assign_target_name(node.target)
-            if name == target_name:
-                return _node_source(node, source_lines)
-    return None
-
-
-def _assign_target_name(target: ast.AST) -> Optional[str]:
-    """Return the simple name from an assignment target, or ``None``."""
-    if isinstance(target, ast.Name):
-        return target.id
-    if isinstance(target, ast.Attribute):
-        return target.attr
-    return None
-
-
-def _extract_class_attribute(
-    class_node: ast.ClassDef,
-    source_lines: list[str],
-    attr_name: str,
-) -> Optional[str]:
-    """Extract a class-level attribute (Assign / AnnAssign / property)."""
-    for child in class_node.body:
-        # Regular assignment: x = ...
-        if isinstance(child, ast.Assign):
-            for target in child.targets:
-                if _assign_target_name(target) == attr_name:
-                    return _node_source(child, source_lines)
-        # Annotated assignment: x: int = ...
-        elif isinstance(child, ast.AnnAssign) and child.target:
-            if _assign_target_name(child.target) == attr_name:
-                return _node_source(child, source_lines)
-        # Property decorated function.
-        elif isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            if child.name == attr_name and any(
-                (isinstance(d, ast.Name) and d.id == "property")
-                or (isinstance(d, ast.Attribute) and d.attr == "property")
-                for d in child.decorator_list
-            ):
-                return _format_function(child, source_lines, "full")
-    return None
-
-
-# ---------------------------------------------------------------------------
-# High-level helpers
-# ---------------------------------------------------------------------------
-
-
-def _find_used_attrs_on_module(
-    target_func_file: str,
-    body_position: list[int],
-    module_local_name: str,
-) -> list[str]:
-    """Find attribute accesses like ``module.X`` in the target function body.
-
-    Parses the target function's source file, locates the function body by
-    line range, and collects all ``module_local_name.attr`` references.
-    """
-    source, tree = _parse_file(target_func_file)
-    if source is None or tree is None:
-        return []
-
-    body_start, body_end = body_position
-
-    attrs: list[str] = []
-    seen: set[str] = set()
-    for node in ast.walk(tree):
-        if not hasattr(node, "lineno"):
-            continue
-        if node.lineno < body_start or node.lineno > body_end:
-            continue
-        if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
-            if node.value.id == module_local_name and node.attr not in seen:
-                seen.add(node.attr)
-                attrs.append(node.attr)
-    return attrs
-
-
-def _resolve_module_local_name(
-    target_func_file: str,
-    module_file_path: str,
-    dep_symbol: str,
-) -> Optional[str]:
-    """Determine the local name used to reference the module in imports.
-
-    Checks ``import X.Y.Z as alias`` and ``from X.Y import Z`` patterns.
-    Falls back to the last component of the dependency symbol.
-    """
-    source, tree = _parse_file(target_func_file)
-    if source is None or tree is None:
-        return dep_symbol.split(".")[-1]
-
-    dep_parts = dep_symbol.split(".")
-    for node in ast.iter_child_nodes(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                if alias.name == dep_symbol:
-                    return alias.asname if alias.asname else dep_parts[-1]
-        elif isinstance(node, ast.ImportFrom):
-            # from X.Y import Z  ->  dep_symbol = "X.Y.Z"
-            for alias in node.names:
-                full = f"{node.module}.{alias.name}" if node.module else alias.name
-                if full == dep_symbol:
-                    return alias.asname if alias.asname else alias.name
-    return dep_parts[-1]
 
 
 def extract_dependency_code(
@@ -413,21 +52,7 @@ def extract_dependency_code(
     target_func_file: Optional[str] = None,
     body_position: Optional[list[int]] = None,
 ) -> Optional[str]:
-    """Resolve a DevEval dependency symbol and extract its source.
-
-    When the symbol resolves to a module (empty remainder), the target
-    function's body is analysed to discover which attributes of the module
-    are actually used, and only those symbols are extracted.
-
-    Args:
-        project_path: Repository sub-path as recorded in ``data.jsonl``.
-        symbol: Fully-qualified dependency symbol.
-        func_mode: ``"full"`` or ``"sig_doc"`` for functions/methods.
-        class_mode: ``"full"`` or ``"sig_doc"`` for classes.
-        target_func_file: Path to the file containing the target function
-            (needed for module-reference resolution).
-        body_position: ``[start_line, end_line]`` of the target function body.
-    """
+    """Resolve a DevEval dependency symbol and extract its source."""
     repo_path = str(SOURCE_CODE_DIR / project_path)
     if not os.path.isdir(repo_path):
         return None
@@ -444,11 +69,11 @@ def extract_dependency_code(
     if target_func_file is None or body_position is None:
         return None
 
-    local_name = _resolve_module_local_name(target_func_file, file_path, symbol)
+    local_name = resolve_module_local_name(target_func_file, file_path, symbol)
     if local_name is None:
         return None
 
-    used_attrs = _find_used_attrs_on_module(
+    used_attrs = find_used_attrs_on_module(
         target_func_file, body_position, local_name,
     )
     if not used_attrs:
@@ -462,17 +87,17 @@ def extract_dependency_code(
     return "\n\n".join(blocks) if blocks else None
 
 
+# ---------------------------------------------------------------------------
+# Context building & prompt injection
+# ---------------------------------------------------------------------------
+
+
 def build_context_string(
     sample: dict,
     func_mode: str = "full",
     class_mode: str = "full",
 ) -> str:
-    """Collect all dependency code blocks for a single sample.
-
-    Iterates over ``intra_class``, ``intra_file``, and ``cross_file``
-    dependencies, extracts each one, and joins the results into a single
-    context string.  Duplicates are removed while preserving order.
-    """
+    """Collect all dependency code blocks for a single sample."""
     dep = sample["dependency"]
     project_path = sample["project_path"]
 
@@ -485,7 +110,6 @@ def build_context_string(
     if not all_symbols:
         return ""
 
-    # Target function info for module-reference resolution.
     target_func_file = str(
         SOURCE_CODE_DIR / sample["completion_path"]
     ) if "completion_path" in sample else None
@@ -515,7 +139,6 @@ def inject_context(original_prompt: str, context: str) -> str:
     """Inject dependency context and body-only instruction into the prompt."""
     prompt = original_prompt
 
-    # Insert context block before "Input Code:" if available.
     if context:
         marker = "Input Code:"
         idx = prompt.find(marker)
@@ -528,7 +151,6 @@ def inject_context(original_prompt: str, context: str) -> str:
             )
             prompt = prompt[:idx] + context_block + prompt[idx:]
 
-    # Replace "Completed Code:" with instruction to output body only.
     prompt = prompt.replace(
         "Completed Code:",
         "Completed Code (output only the function body, without the def line, docstring, or any import statements):",
@@ -546,7 +168,6 @@ def main() -> None:
     """Generate prompt variants and write them to ``output/``."""
     OUTPUT_DIR.mkdir(exist_ok=True)
 
-    # Load DevEval metadata.
     print("Loading data.jsonl...")
     data_map: dict[str, dict] = {}
     with open(DATA_JSONL, "r") as f:
@@ -554,7 +175,6 @@ def main() -> None:
             sample = json.loads(line)
             data_map[sample["namespace"]] = sample
 
-    # Load base prompts.
     print(f"Loading prompts from {PROMPT_FILE.name}...")
     prompts: list[dict] = []
     with open(PROMPT_FILE, "r") as f:
@@ -563,7 +183,6 @@ def main() -> None:
 
     print(f"  samples (filtered): {len(data_map)}, base prompts (DevEval): {len(prompts)}")
 
-    # (func_mode, class_mode, output_filename)
     variants = [
         ("sig_doc", "sig_doc", "prompt_func-sd_class-sd.jsonl"),
         ("sig_doc", "full",    "prompt_func-sd_class-full.jsonl"),
@@ -571,7 +190,9 @@ def main() -> None:
         ("full",    "full",    "prompt_func-full_class-full.jsonl"),
     ]
 
-    for func_mode, class_mode, out_name in variants:
+    valid_namespaces: list[str] = []
+
+    for idx, (func_mode, class_mode, out_name) in enumerate(variants):
         out_path = OUTPUT_DIR / out_name
         print(f"\nGenerating {out_name} (func={func_mode}, class={class_mode})...")
 
@@ -597,8 +218,18 @@ def main() -> None:
                 if context:
                     with_context += 1
 
-        print(f"  Done: {total} prompts, {with_context} with context, {skipped} skipped (no match in data)")
+                if idx == 0:
+                    valid_namespaces.append(ns)
+
+        print(f"  Done: {total} prompts ({with_context} with context), {skipped} skipped (no match in data)")
         print(f"  Saved to {out_path}")
+
+    # Write valid_namespaces.txt for stage2 filtering of baseline prompts.
+    ns_path = OUTPUT_DIR / "valid_namespaces.txt"
+    with open(ns_path, "w") as f:
+        for ns in valid_namespaces:
+            f.write(ns + "\n")
+    print(f"\nSaved {len(valid_namespaces)} valid namespaces to {ns_path}")
 
 
 if __name__ == "__main__":
