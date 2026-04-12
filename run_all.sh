@@ -5,8 +5,7 @@ MODEL="gpt-5.4-mini"
 API_KEY_FILE="api_key.txt"
 
 DEVEVAL_DIR="DevEval"
-PROMPT_DIR="${DEVEVAL_DIR}/Experiments/prompt"
-OUTPUT_BASE="${DEVEVAL_DIR}/Experiments"
+OUTPUT_BASE="output/generated_code"
 SOURCE_CODE_ROOT="${DEVEVAL_DIR}/Source_Code"
 DATA_FILE="${DEVEVAL_DIR}/data.jsonl"
 
@@ -19,18 +18,15 @@ python filter_data.py
 echo "=== Building prompts ==="
 python build_prompt.py
 
-echo "=== Stage 2: Filter baseline prompts ==="
-python filter_data.py --stage2
-
 # -------------------------------------------------------
 # 2. Define the 4 experiments
 #    (label, prompt_file)
 # -------------------------------------------------------
 declare -a EXPERIMENTS=(
-    "without_context|output/prompt_without_context.jsonl"
-    "local_infilling|output/prompt_local_infilling.jsonl"
-    "func-sd_class-sd|output/prompt_func-sd_class-sd.jsonl"
-    "func-full_class-full|output/prompt_func-full_class-full.jsonl"
+    "without_context|output/prompt/prompt_without_context.jsonl"
+    "local_infilling|output/prompt/prompt_local_infilling.jsonl"
+    "func-sd_class-sd|output/prompt/prompt_func-sd_class-sd.jsonl"
+    "func-full_class-full|output/prompt/prompt_func-full_class-full.jsonl"
 )
 
 # -------------------------------------------------------

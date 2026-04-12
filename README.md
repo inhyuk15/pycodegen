@@ -99,14 +99,21 @@ python DevEval/pass_k.py \
 .
 ├── filter_data.py           # Filter data.jsonl → data_filtered.jsonl
 ├── ast_extractor.py         # AST-based symbol resolution & source extraction
-├── build_prompt.py          # Prompt builder (context injection using ast_extractor)
+├── build_prompt.py          # Prompt builder (context injection + baseline filtering)
 ├── inference.py             # LLM inference runner
-├── data_filtered.jsonl      # (generated) DevEval samples with dependencies only (1,323/1,825)
-├── output/                  # Generated prompt variants
-│   ├── prompt_func-sd_class-sd.jsonl
-│   ├── prompt_func-sd_class-full.jsonl
-│   ├── prompt_func-full_class-sd.jsonl
-│   └── prompt_func-full_class-full.jsonl
+├── run_all.sh               # Full pipeline (filter → build → inference → evaluate)
+├── data_filtered.jsonl      # (generated) samples with dependencies (1,323/1,825)
+├── output/
+│   ├── prompt/              # Generated prompts
+│   │   ├── prompt_without_context.jsonl
+│   │   ├── prompt_local_infilling.jsonl
+│   │   ├── prompt_func-sd_class-sd.jsonl
+│   │   └── prompt_func-full_class-full.jsonl
+│   └── generated_code/      # Inference results
+│       ├── without_context/{model}/
+│       ├── local_infilling/{model}/
+│       ├── func-sd_class-sd/{model}/
+│       └── func-full_class-full/{model}/
 ├── DevEval/                 # External (cloned separately)
 │   ├── data.jsonl
 │   └── Source_Code/

@@ -37,7 +37,7 @@ PROMPT_FILE = (
     / "without_context"
     / "gpt-4-1106_prompt.jsonl"
 )
-OUTPUT_DIR = BASE_DIR / "output"
+OUTPUT_DIR = BASE_DIR / "output" / "prompt"
 
 # ---------------------------------------------------------------------------
 # Dependency extraction (bridges ast_extractor.py)
@@ -224,12 +224,28 @@ def main() -> None:
         print(f"  Done: {total} prompts ({with_context} with context), {skipped} skipped (no match in data)")
         print(f"  Saved to {out_path}")
 
-    # Write valid_namespaces.txt for stage2 filtering of baseline prompts.
-    ns_path = OUTPUT_DIR / "valid_namespaces.txt"
-    with open(ns_path, "w") as f:
-        for ns in valid_namespaces:
-            f.write(ns + "\n")
-    print(f"\nSaved {len(valid_namespaces)} valid namespaces to {ns_path}")
+    # Filter baseline prompts to the same namespace set.
+    valid_ns = set(valid_namespaces)
+    baseline_sources = {
+        "without_context": DEVEVAL_DIR / "Experiments" / "prompt" / "without_context" / "gpt-4-1106_prompt.jsonl",
+        "local_infilling": DEVEVAL_DIR / "Experiments" / "prompt" / "local_infilling" / "gpt-4-1106_prompt.jsonl",
+    }
+
+    print("\nFiltering baseline prompts...")
+    for label, src_path in baseline_sources.items():
+        if not src_path.exists():
+            print(f"  {label}: source not found ({src_path}), skipping")
+            continue
+
+        out_path = OUTPUT_DIR / f"prompt_{label}.jsonl"
+        written = 0
+        with open(src_path, "r") as fin, open(out_path, "w") as fout:
+            for line in fin:
+                entry = json.loads(line)
+                if entry["namespace"] in valid_ns:
+                    fout.write(line)
+                    written += 1
+        print(f"  {label}: {written} prompts, saved to {out_path}")
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 DevEval/
-output/
+output/prompt/
 data_filtered.jsonl
 api_key.txt
 __pycache__/
