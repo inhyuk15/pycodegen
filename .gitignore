@@ -1,6 +1,9 @@
 DevEval/
+hydra/
 output/prompt/
 data_filtered.jsonl
+data_hydra.jsonl
+data_hydra_filtered.jsonl
 api_key.txt
 __pycache__/
 .vscode
