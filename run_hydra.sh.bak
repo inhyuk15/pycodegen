@@ -1,0 +1,15 @@
+MODEL=gpt-5.4-mini
+
+for VARIANT in hydra_dar hydra_dar_bm25; do
+    python inference.py \
+        --prompt_file output/prompt/prompt_${VARIANT}.jsonl \
+        --output_dir output/generated_code/${VARIANT}/${MODEL} \
+        --model ${MODEL} \
+        --api_key_file api_key.txt
+
+    python DevEval/pass_k.py \
+        --output_file output/generated_code/${VARIANT}/${MODEL}/completion.jsonl \
+        --log_file output/generated_code/${VARIANT}/${MODEL}/log.jsonl \
+        --source_code_root DevEval/Source_Code \
+        --data_file DevEval/data.jsonl
+done
