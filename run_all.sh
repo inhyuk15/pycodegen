@@ -22,11 +22,16 @@ python build_prompt.py
 # 2. Define the 4 experiments
 #    (label, prompt_file)
 # -------------------------------------------------------
+# declare -a EXPERIMENTS=(
+#     "without_context|output/prompt/prompt_without_context.jsonl"
+#     "local_infilling|output/prompt/prompt_local_infilling.jsonl"
+#     "func-sd_class-sd|output/prompt/prompt_func-sd_class-sd.jsonl"
+#     "func-full_class-full|output/prompt/prompt_func-full_class-full.jsonl"
+# )
+
 declare -a EXPERIMENTS=(
-    "without_context|output/prompt/prompt_without_context.jsonl"
-    "local_infilling|output/prompt/prompt_local_infilling.jsonl"
-    "func-sd_class-sd|output/prompt/prompt_func-sd_class-sd.jsonl"
-    "func-full_class-full|output/prompt/prompt_func-full_class-full.jsonl"
+    "func-sd_class-full|output/prompt/prompt_func-sd_class-full.jsonl"
+    "func-full_class-sd|output/prompt/prompt_func-full_class-sd.jsonl"
 )
 
 # -------------------------------------------------------
@@ -50,7 +55,7 @@ for entry in "${EXPERIMENTS[@]}"; do
     echo "=========================================="
     echo "  [${LABEL}] Evaluate"
     echo "=========================================="
-    python "${DEVEVAL_DIR}/pass_k.py" \
+    python pass_k_verbose.py \
         --output_file "${OUT_DIR}/completion.jsonl" \
         --log_file "${OUT_DIR}/log.jsonl" \
         --source_code_root "$SOURCE_CODE_ROOT" \

@@ -125,7 +125,9 @@ def extract_symbol_from_ast(
                 # full class already contains everything
                 return class_src
 
-            # sig_doc mode: class signatures + full member definition
+            # sig_doc / sd_init: class signatures + full member definition
+            # (for sd_init, __init__ is already in class_src, but the target
+            # member still shown separately for clarity when sub_name matches)
             member_src = _find_member(node, source_lines, sub_name, func_mode)
             if member_src:
                 return class_src + "\n\n" + member_src
@@ -188,7 +190,7 @@ def _format_class(
     if mode == "full":
         return _node_source(node, source_lines)
 
-    if mode == "sig_doc":
+    if mode in ("sig_doc", "sd_init"):
         sig_line = source_lines[node.lineno - 1]
         sig_lines = [sig_line]
         idx = node.lineno
@@ -205,9 +207,13 @@ def _format_class(
 
         for child in node.body:
             if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                member_sig = _format_function(child, source_lines, "sig_doc")
-                if member_sig:
-                    result += "\n" + textwrap.indent(member_sig, "    ")
+                # sd_init: __init__ is shown in full, others sig_doc.
+                if mode == "sd_init" and child.name == "__init__":
+                    member_src = _format_function(child, source_lines, "full")
+                else:
+                    member_src = _format_function(child, source_lines, "sig_doc")
+                if member_src:
+                    result += "\n" + textwrap.indent(member_src, "    ")
             elif isinstance(child, (ast.Assign, ast.AnnAssign)):
                 result += "\n    " + _node_source(child, source_lines).strip()
 

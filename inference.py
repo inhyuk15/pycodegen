@@ -11,14 +11,53 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import glob
 import json
 import os
+import re
 import time
 
 from openai import AsyncOpenAI
 from tqdm import tqdm
 
 DEFAULT_CONCURRENCY = 5
+
+
+def resolve_version_dir(base_dir: str, prompt_count: int) -> str:
+    """Return the versioned run directory to use under *base_dir*.
+
+    - If no ``v{N}`` subdirs exist → create ``v1``.
+    - If the latest ``v{N}/completion.jsonl`` has fewer lines than
+      *prompt_count* → resume inside it.
+    - Otherwise → create ``v{N+1}``.
+    """
+    os.makedirs(base_dir, exist_ok=True)
+    existing = []
+    for entry in os.listdir(base_dir):
+        m = re.fullmatch(r"v(\d+)", entry)
+        if m and os.path.isdir(os.path.join(base_dir, entry)):
+            existing.append(int(m.group(1)))
+    existing.sort()
+
+    if existing:
+        latest = existing[-1]
+        comp_file = os.path.join(base_dir, f"v{latest}", "completion.jsonl")
+        done = 0
+        if os.path.exists(comp_file):
+            with open(comp_file) as f:
+                done = sum(1 for _ in f)
+        if done < prompt_count:
+            chosen = os.path.join(base_dir, f"v{latest}")
+            print(f"[version] Resuming in v{latest} ({done}/{prompt_count} done)")
+            return chosen
+        next_n = latest + 1
+    else:
+        next_n = 1
+
+    chosen = os.path.join(base_dir, f"v{next_n}")
+    os.makedirs(chosen, exist_ok=True)
+    print(f"[version] Starting fresh run v{next_n}")
+    return chosen
 
 
 def clean_completion(code: str) -> str:
@@ -86,6 +125,9 @@ async def _call_with_retry(
             )
             return resp.choices[0].message.content
         except Exception as e:
+            if "context_length_exceeded" in str(e):
+                print(f"Token limit exceeded, returning empty completion.")
+                return ""
             if attempt == max_retries - 1:
                 raise
             print(f"Error: {e}, retrying in {delay}s...")
@@ -98,8 +140,16 @@ async def run_inference(args) -> None:
         api_key = f.read().strip()
 
     client = AsyncOpenAI(api_key=api_key)
-    os.makedirs(args.output_dir, exist_ok=True)
-    output_path = os.path.join(args.output_dir, "completion.jsonl")
+
+    with open(args.prompt_file) as f:
+        samples = [json.loads(line) for line in f]
+
+    if args.limit is not None:
+        samples = samples[: args.limit]
+
+    # Pick or create a versioned subdir under the given output_dir.
+    run_dir = resolve_version_dir(args.output_dir, len(samples))
+    output_path = os.path.join(run_dir, "completion.jsonl")
 
     # Load already-finished namespaces for resume support.
     finished: set[str] = set()
@@ -107,12 +157,6 @@ async def run_inference(args) -> None:
         with open(output_path) as f:
             for line in f:
                 finished.add(json.loads(line)["namespace"])
-
-    with open(args.prompt_file) as f:
-        samples = [json.loads(line) for line in f]
-
-    if args.limit is not None:
-        samples = samples[: args.limit]
 
     todo = [s for s in samples if s["namespace"] not in finished]
     print(f"Total: {len(samples)}, already done: {len(finished)}, todo: {len(todo)}")

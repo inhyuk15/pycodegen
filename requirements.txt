@@ -2,6 +2,9 @@
 openai>=1.0.0
 tqdm>=4.65.0
 
+# Hydra comparison
+rank_bm25>=0.2.2
+
 # Evaluation (DevEval pass_k.py)
 setuptools==68.0.0
 func_timeout>=4.3.5

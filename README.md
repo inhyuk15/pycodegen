@@ -85,8 +85,10 @@ python inference.py \
 
 ### 4. Evaluate
 
+We use `pass_k_verbose.py` (a drop-in replacement for DevEval's `pass_k.py` that also captures stderr on failures):
+
 ```bash
-python DevEval/pass_k.py \
+python pass_k_verbose.py \
     --output_file output/generated_code/${VARIANT}/${MODEL}/completion.jsonl \
     --log_file output/generated_code/${VARIANT}/${MODEL}/log.jsonl \
     --source_code_root DevEval/Source_Code \
@@ -133,12 +135,12 @@ Generates `hydra/data/processed_benchmarks/processed_DevEval.jsonl` (1,825 sampl
 ### 3. Build hydra-format prompts
 
 ```bash
-python build_hydra_prompt.py
+python build_hydra_prompt.py --full
 ```
 
-Uses ground-truth dependencies (DAR recall=1.0) to build hydra-format prompts, filtered to our 1,323 samples:
-- `output/prompt/prompt_hydra_dar.jsonl` — ground-truth dependencies only
-- `output/prompt/prompt_hydra_dar_bm25.jsonl` — ground-truth + BM25 top-5
+Uses outgoing_calls from hydra's dependency graph (DAR recall=1.0 simulation) to build hydra-format prompts for all 1,825 samples:
+- `output_full/prompt/prompt_hydra_dar.jsonl` — outgoing_calls only (perfect DAR)
+- `output_full/prompt/prompt_hydra_dar_bm25.jsonl` — outgoing_calls + BM25 top-5
 
 ### 4. Run inference & evaluate
 
@@ -147,14 +149,14 @@ MODEL=gpt-5.4-mini
 
 for VARIANT in hydra_dar hydra_dar_bm25; do
     python inference.py \
-        --prompt_file output/prompt/prompt_${VARIANT}.jsonl \
-        --output_dir output/generated_code/${VARIANT}/${MODEL} \
+        --prompt_file output_full/prompt/prompt_${VARIANT}.jsonl \
+        --output_dir output_full/generated_code/${VARIANT}/${MODEL} \
         --model ${MODEL} \
         --api_key_file api_key.txt
 
-    python DevEval/pass_k.py \
-        --output_file output/generated_code/${VARIANT}/${MODEL}/completion.jsonl \
-        --log_file output/generated_code/${VARIANT}/${MODEL}/log.jsonl \
+    python pass_k_verbose.py \
+        --output_file output_full/generated_code/${VARIANT}/${MODEL}/completion.jsonl \
+        --log_file output_full/generated_code/${VARIANT}/${MODEL}/log.jsonl \
         --source_code_root DevEval/Source_Code \
         --data_file DevEval/data.jsonl
 done

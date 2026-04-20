@@ -185,6 +185,7 @@ def main() -> None:
 
     variants = [
         ("sig_doc", "sig_doc", "prompt_func-sd_class-sd.jsonl"),
+        ("sig_doc", "sd_init", "prompt_func-sd_class-sd_init.jsonl"),
         ("sig_doc", "full",    "prompt_func-sd_class-full.jsonl"),
         ("full",    "sig_doc", "prompt_func-full_class-sd.jsonl"),
         ("full",    "full",    "prompt_func-full_class-full.jsonl"),
