@@ -1,6 +1,5 @@
 from pathlib import Path
 import json
-import re
 import subprocess
 import psutil
 from subprocess import run
@@ -13,27 +12,6 @@ from argparse import ArgumentParser
 import textwrap
 from func_timeout import func_set_timeout
 import func_timeout
-
-
-def resolve_latest_version(base_dir: Path) -> Path:
-    """Return the highest ``v{N}`` subdirectory under *base_dir*.
-
-    Returns base_dir itself if no versioned subdir exists (backward compat).
-    """
-    base_dir = Path(base_dir)
-    if not base_dir.is_dir():
-        return base_dir
-    candidates = []
-    for entry in base_dir.iterdir():
-        m = re.fullmatch(r"v(\d+)", entry.name)
-        if m and entry.is_dir():
-            candidates.append((int(m.group(1)), entry))
-    if not candidates:
-        return base_dir
-    candidates.sort()
-    chosen = candidates[-1][1]
-    print(f"[version] Using {chosen}")
-    return chosen
 
 
 def get_parser():
@@ -56,10 +34,68 @@ def adjust_indent(code, new_indent):
     indented_code = textwrap.indent(dedented_code, ' ' * new_indent)
     return indented_code
 
+_SETUP_NOISE_PATTERNS = (
+    'SetuptoolsDeprecationWarning',
+    'License ::',
+    'SPDX',
+    'packaging.python.org',
+    '********************************************************************************',
+    'Please consider removing',
+    'simple string containing a SPDX',
+    'pyproject-toml',
+    'simple string',
+    'fetch_build_eggs are deprecated',
+    'Requirements should be satisfied',
+    'use-pep517',
+    'no previously-included',
+    'warning: no files found matching',
+    'warning: no previously-included',
+    "!!",
+)
+
+
+def _filter_setup_noise(text: str) -> str:
+    """Drop setuptools deprecation/warning lines that swamp real errors."""
+    out = []
+    for line in text.splitlines():
+        if any(p in line for p in _SETUP_NOISE_PATTERNS):
+            continue
+        out.append(line)
+    return '\n'.join(out)
+
+
+def _combine_output(stdout: str, stderr: str, limit: int = 4000) -> str:
+    """Merge stdout+stderr, drop setup noise, keep the tail (where real error is)."""
+    cleaned_out = _filter_setup_noise(stdout)
+    cleaned_err = _filter_setup_noise(stderr)
+    combined_parts = []
+    if cleaned_out.strip():
+        combined_parts.append('--- STDOUT ---\n' + cleaned_out.strip())
+    if cleaned_err.strip():
+        combined_parts.append('--- STDERR ---\n' + cleaned_err.strip())
+    combined = '\n\n'.join(combined_parts)
+    if len(combined) > limit:
+        combined = combined[-limit:]
+    return combined
+
+
+def _resolve_python(args, data):
+    """Use per-repo venv python if available, else fall back to system python."""
+    repo_name = os.path.basename(data['project_path'])
+    # VENV_BASE is a sibling of source_code_root (DevEval/.venvs, DevEval/Source_Code)
+    venv_python = os.path.abspath(os.path.join(
+        os.path.dirname(str(args.source_code_root)), '.venvs', repo_name, 'bin', 'python'
+    ))
+    if os.path.isfile(venv_python):
+        return venv_python
+    return 'python'
+
+
 @func_set_timeout(60)
 def execution_tests(args, data):
     project_path = os.path.join(args.source_code_root, data['project_path'])
-    command = ['python', 'setup.py', 'pytest', '--addopts']
+    python_bin = _resolve_python(args, data)
+    command = [python_bin, '-m', 'pytest', '-p', 'no:cacheprovider', '--no-header', '-x']
     for test in data['tests']:
         process = subprocess.Popen(command + [test], cwd=project_path, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
@@ -73,10 +109,11 @@ def execution_tests(args, data):
                 return_code = process.poll()
                 if return_code is not None:
                     if return_code != 0:
-                        stderr = process.stderr.read().decode('utf-8', errors='replace')[-1000:]
+                        stdout = process.stdout.read().decode('utf-8', errors='replace')
+                        stderr = process.stderr.read().decode('utf-8', errors='replace')
                         process.terminate()
                         process.wait()
-                        return 'Error', stderr # Execution Error
+                        return 'Error', _combine_output(stdout, stderr)
                     else:
                         break
         except Exception as e:
@@ -217,15 +254,6 @@ def _worker_fn(task):
 
 
 def main(args):
-    # Auto-resolve to the latest v{N} subdir if output_file points at the base.
-    if not args.output_file.exists() and args.output_file.name == "completion.jsonl":
-        base = args.output_file.parent
-        resolved = resolve_latest_version(base)
-        if resolved != base:
-            args.output_file = resolved / "completion.jsonl"
-            if args.log_file.name == "log.jsonl":
-                args.log_file = resolved / "log.jsonl"
-
     finished_data = load_finished_data(args)
 
     todo_output_data = []

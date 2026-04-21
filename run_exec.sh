@@ -24,6 +24,7 @@ DATA_FILE="${DEVEVAL_DIR}/data.jsonl"
 #    (label, prompt_file)
 # -------------------------------------------------------
 declare -a EXPERIMENTS=(
+    "local_infilling|output/prompt/prompt_local_infilling.jsonl"
     "without_context|output/prompt/prompt_without_context.jsonl"
     "func-sd_class-sd|output/prompt/prompt_func-sd_class-sd.jsonl"
     "func-sd_class-sd_init|output/prompt/prompt_func-sd_class-sd_init.jsonl"
@@ -37,7 +38,7 @@ declare -a EXPERIMENTS=(
 # -------------------------------------------------------
 for entry in "${EXPERIMENTS[@]}"; do
     IFS='|' read -r LABEL PROMPT_FILE <<< "$entry"
-    OUT_DIR="${OUTPUT_BASE}/${LABEL}/${MODEL}"
+    OUT_DIR="${OUTPUT_BASE}/${MODEL}/${LABEL}"
 
     # echo ""
     # echo "=========================================="

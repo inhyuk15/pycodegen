@@ -39,7 +39,7 @@ declare -a EXPERIMENTS=(
 # -------------------------------------------------------
 for entry in "${EXPERIMENTS[@]}"; do
     IFS='|' read -r LABEL PROMPT_FILE <<< "$entry"
-    OUT_DIR="${OUTPUT_BASE}/${LABEL}/${MODEL}"
+    OUT_DIR="${OUTPUT_BASE}/${MODEL}/${LABEL}"
 
     echo ""
     echo "=========================================="
