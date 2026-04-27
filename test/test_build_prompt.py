@@ -28,7 +28,10 @@ from build_prompt import build_context_string
 _MODES = [
     ("sd_sd", "sig_doc", "sig_doc"),
     ("sd_init", "sig_doc", "sd_init"),
+    ("sd_focused", "sig_doc", "sig_doc_focused"),
+    ("sd_init_focused", "sig_doc", "sd_init_focused"),
     ("full_full", "full", "full"),
+    ("full_focused", "full", "full_focused"),
 ]
 
 

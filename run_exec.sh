@@ -24,13 +24,17 @@ DATA_FILE="${DEVEVAL_DIR}/data.jsonl"
 #    (label, prompt_file)
 # -------------------------------------------------------
 declare -a EXPERIMENTS=(
-    "local_infilling|output/prompt/prompt_local_infilling.jsonl"
-    "without_context|output/prompt/prompt_without_context.jsonl"
+    # "local_infilling|output/prompt/prompt_local_infilling.jsonl"
+    # "without_context|output/prompt/prompt_without_context.jsonl"
     "func-sd_class-sd|output/prompt/prompt_func-sd_class-sd.jsonl"
     "func-sd_class-sd_init|output/prompt/prompt_func-sd_class-sd_init.jsonl"
-    "func-sd_class-full|output/prompt/prompt_func-sd_class-full.jsonl"
-    "func-full_class-sd|output/prompt/prompt_func-full_class-sd.jsonl"
+    # "func-sd_class-full|output/prompt/prompt_func-sd_class-full.jsonl"
+    # "func-full_class-sd|output/prompt/prompt_func-full_class-sd.jsonl"
     "func-full_class-full|output/prompt/prompt_func-full_class-full.jsonl"
+    # Focused variants (only dep members shown, not whole class)
+    "func-sd_class-sd_focused|output/prompt/prompt_func-sd_class-sd_focused.jsonl"
+    "func-sd_class-sd_init_focused|output/prompt/prompt_func-sd_class-sd_init_focused.jsonl"
+    "func-full_class-full_focused|output/prompt/prompt_func-full_class-full_focused.jsonl"
 )
 
 # -------------------------------------------------------

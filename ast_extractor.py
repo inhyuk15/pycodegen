@@ -209,6 +209,15 @@ def _format_class(
     source_lines: list[str],
     mode: str,
 ) -> Optional[str]:
+    # For focused modes, when extracting a whole class (no specific members
+    # to focus on), fall back to the corresponding non-focused mode.
+    if mode == "full_focused":
+        mode = "full"
+    elif mode == "sig_doc_focused":
+        mode = "sig_doc"
+    elif mode == "sd_init_focused":
+        mode = "sd_init"
+
     if mode == "full":
         return _node_source(node, source_lines)
 
@@ -283,13 +292,14 @@ def extract_class_with_dep_members(
         return _format_class_with_redact(class_node, source_lines, redact_member)
 
     if mode in ("sig_doc", "sd_init"):
+        # Full skeleton (sigs of every member) + dep members appended in full.
         skeleton = _format_class(class_node, source_lines, mode)
         if skeleton is None:
             return None
         parts = [skeleton]
         for name in dep_members:
             if name == redact_member:
-                continue  # don't reveal target body
+                continue
             if mode == "sd_init" and name == "__init__":
                 continue  # already shown in full inside the skeleton
             for child in class_node.body:
@@ -303,7 +313,86 @@ def extract_class_with_dep_members(
                     break
         return "\n\n".join(parts)
 
+    if mode in ("sig_doc_focused", "sd_init_focused", "full_focused"):
+        # Class signature with ONLY the dep members rendered inside the class.
+        # Instance attrs (like `self.x` set in __init__) are not class-body
+        # members — auto-include the method that sets them so the model can
+        # see how/where the attr is defined.
+        sig_end_excl = class_node.body[0].lineno - 1 if class_node.body else class_node.lineno
+        start = _node_start_lineno(class_node)
+        sig_lines = source_lines[start - 1 : sig_end_excl]
+        result = textwrap.dedent("\n".join(sig_lines))
+
+        # Resolve each dep_member to a class method node.
+        # Track whether each method was triggered as a "direct method dep" or
+        # as an "instance-attr setter" — setters are always rendered in full
+        # so the assignment lines are visible.
+        method_to_kind: dict[ast.AST, str] = {}  # node -> 'direct' or 'setter'
+        for name in dep_members:
+            if name == redact_member:
+                continue
+            direct = None
+            for child in class_node.body:
+                if (
+                    isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and child.name == name
+                ):
+                    direct = child
+                    break
+            if direct is not None:
+                if direct not in method_to_kind:
+                    method_to_kind[direct] = "direct"
+            else:
+                setter = _find_instance_attr_setter(class_node, name)
+                if setter is not None and setter.name != redact_member:
+                    # Promote to 'setter' (full body) only if not already direct.
+                    method_to_kind.setdefault(setter, "setter")
+
+        for method_node, kind in method_to_kind.items():
+            if kind == "setter":
+                member_mode = "full"
+            elif mode == "full_focused":
+                member_mode = "full"
+            elif mode == "sd_init_focused" and method_node.name == "__init__":
+                member_mode = "full"
+            else:
+                member_mode = "sig_doc"
+            src = _format_function(method_node, source_lines, member_mode)
+            if src:
+                result += "\n" + textwrap.indent(src, "    ")
+
+        if not method_to_kind:
+            result += "\n    ..."
+        return result
+
     return None
+
+
+def _format_class_focused(
+    node: ast.ClassDef,
+    source_lines: list[str],
+    dep_members: list[str],
+) -> str:
+    """For cross-file class.member deps in 'full' mode: class signature line
+    only, plus each requested dep member in full body. This avoids pulling
+    in huge external class bodies just because one method was referenced.
+    """
+    sig_end_excl = node.body[0].lineno - 1 if node.body else node.lineno
+    start = _node_start_lineno(node)
+    sig_lines = source_lines[start - 1 : sig_end_excl]
+    parts = [textwrap.dedent("\n".join(sig_lines))]
+
+    for name in dep_members:
+        for child in node.body:
+            if (
+                isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and child.name == name
+            ):
+                full = _format_function(child, source_lines, "full")
+                if full:
+                    parts.append(full)
+                break
+    return "\n\n".join(parts)
 
 
 def _format_class_with_redact(
@@ -348,6 +437,40 @@ def _format_class_with_redact(
         + class_lines[end_idx + 1 :]
     )
     return textwrap.dedent("\n".join(new_lines))
+
+
+def _find_instance_attr_setter(
+    class_node: ast.ClassDef, attr_name: str,
+) -> Optional[ast.AST]:
+    """Return the class method that contains ``self.{attr_name} = ...``.
+
+    This handles the common pattern where instance attributes are declared
+    via assignment inside ``__init__`` (or another method), rather than as
+    direct class members.
+    """
+    for child in class_node.body:
+        if not isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for stmt in ast.walk(child):
+            if isinstance(stmt, ast.Assign):
+                for t in stmt.targets:
+                    if (
+                        isinstance(t, ast.Attribute)
+                        and isinstance(t.value, ast.Name)
+                        and t.value.id == "self"
+                        and t.attr == attr_name
+                    ):
+                        return child
+            elif isinstance(stmt, ast.AnnAssign):
+                tgt = stmt.target
+                if (
+                    isinstance(tgt, ast.Attribute)
+                    and isinstance(tgt.value, ast.Name)
+                    and tgt.value.id == "self"
+                    and tgt.attr == attr_name
+                ):
+                    return child
+    return None
 
 
 def _find_member(

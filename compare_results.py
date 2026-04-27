@@ -26,9 +26,9 @@ VARIANT_ORDER = [
     # reveal which context addition helps most.
     "without_context",
     "func-sd_class-sd",
-    "func-full_class-sd",
+    # "func-full_class-sd",
     "func-sd_class-sd_init",
-    "func-sd_class-full",
+    # "func-sd_class-full",
     "func-full_class-full",
     "local_infilling",
 ]
@@ -38,8 +38,8 @@ SHORT = {
     "local_infilling": "local",
     "func-sd_class-sd": "sd_sd",
     "func-sd_class-sd_init": "sd_init",
-    "func-sd_class-full": "sd_full",
-    "func-full_class-sd": "full_sd",
+    # "func-sd_class-full": "sd_full",
+    # "func-full_class-sd": "full_sd",
     "func-full_class-full": "full_full",
 }
 

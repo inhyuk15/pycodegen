@@ -1,0 +1,12 @@
+{
+  "line": 610,
+  "namespace": "gunicorn.http.body.LengthReader.read",
+  "type": "method",
+  "deps": [
+    {"name": "LengthReader.length", "kind": "intra_class", "symbol_type": "instance_attr (set in __init__)"},
+    {"name": "LengthReader.unreader", "kind": "intra_class", "symbol_type": "instance_attr (set in __init__)"},
+    {"name": "Unreader.read", "kind": "cross_file", "symbol_type": "method"},
+    {"name": "Unreader.unread", "kind": "cross_file", "symbol_type": "method"}
+  ],
+  "note": "Mixed: intra_class (target's class LengthReader, attrs only) + cross_file (Unreader methods). Tests both target redaction AND focused-mode behavior for cross-file class methods."
+}

@@ -66,26 +66,36 @@ def extract_dependency_code(
     if remainder:
         return extract_symbol_from_ast(file_path, remainder, func_mode, class_mode)
 
-    # Module reference: find which attrs are actually used in the target body.
-    if target_func_file is None or body_position is None:
-        return None
+    # Empty remainder = symbol resolved straight to a file. This can mean:
+    #   (a) the dep is "this whole module" — used via `import x; x.foo()`
+    #   (b) the dep is a top-level variable sharing the file's basename,
+    #       e.g. `faker/decode/codes.py` defines `codes = (...)` and is
+    #       imported as `from .codes import codes`.
 
-    local_name = resolve_module_local_name(target_func_file, file_path, symbol)
-    if local_name is None:
-        return None
+    # (a) Try module-as-name pattern first.
+    if target_func_file is not None and body_position is not None:
+        local_name = resolve_module_local_name(target_func_file, file_path, symbol)
+        if local_name is not None:
+            used_attrs = find_used_attrs_on_module(
+                target_func_file, body_position, local_name,
+            )
+            if used_attrs:
+                blocks: list[str] = []
+                for attr in used_attrs:
+                    code = extract_symbol_from_ast(file_path, attr, func_mode, class_mode)
+                    if code:
+                        blocks.append(code)
+                if blocks:
+                    return "\n\n".join(blocks)
 
-    used_attrs = find_used_attrs_on_module(
-        target_func_file, body_position, local_name,
-    )
-    if not used_attrs:
-        return None
+    # (b) Fallback: extract a top-level symbol whose name matches the file's
+    # basename (covers same-name variable/function/class inside the module).
+    leaf = symbol.rsplit(".", 1)[-1]
+    code = extract_symbol_from_ast(file_path, leaf, func_mode, class_mode)
+    if code:
+        return code
 
-    blocks: list[str] = []
-    for attr in used_attrs:
-        code = extract_symbol_from_ast(file_path, attr, func_mode, class_mode)
-        if code:
-            blocks.append(code)
-    return "\n\n".join(blocks) if blocks else None
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -258,11 +268,16 @@ def main() -> None:
     print(f"  samples (filtered): {len(data_map)}, base prompts (DevEval): {len(prompts)}")
 
     variants = [
-        ("sig_doc", "sig_doc", "prompt_func-sd_class-sd.jsonl"),
-        ("sig_doc", "sd_init", "prompt_func-sd_class-sd_init.jsonl"),
-        ("sig_doc", "full",    "prompt_func-sd_class-full.jsonl"),
-        ("full",    "sig_doc", "prompt_func-full_class-sd.jsonl"),
-        ("full",    "full",    "prompt_func-full_class-full.jsonl"),
+        ("sig_doc", "sig_doc",         "prompt_func-sd_class-sd.jsonl"),
+        ("sig_doc", "sd_init",         "prompt_func-sd_class-sd_init.jsonl"),
+        ("sig_doc", "full",            "prompt_func-sd_class-full.jsonl"),
+        ("full",    "sig_doc",         "prompt_func-full_class-sd.jsonl"),
+        ("full",    "full",            "prompt_func-full_class-full.jsonl"),
+        # Focused variants: only the requested dep members are shown
+        # (no full class skeleton with unrelated siblings).
+        ("sig_doc", "sig_doc_focused", "prompt_func-sd_class-sd_focused.jsonl"),
+        ("sig_doc", "sd_init_focused", "prompt_func-sd_class-sd_init_focused.jsonl"),
+        ("full",    "full_focused",    "prompt_func-full_class-full_focused.jsonl"),
     ]
 
     valid_namespaces: list[str] = []
