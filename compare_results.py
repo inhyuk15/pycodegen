@@ -22,15 +22,24 @@ from pathlib import Path
 BASE_DIR = Path(__file__).parent
 
 VARIANT_ORDER = [
+    # Ordered by observed pass@1 (ascending) so adjacent comparisons
+    # reveal which context addition helps most.
     "without_context",
     "func-sd_class-sd",
+    "func-full_class-sd",
+    "func-sd_class-sd_init",
+    "func-sd_class-full",
     "func-full_class-full",
+    "local_infilling",
 ]
 
 SHORT = {
     "without_context": "without",
     "local_infilling": "local",
     "func-sd_class-sd": "sd_sd",
+    "func-sd_class-sd_init": "sd_init",
+    "func-sd_class-full": "sd_full",
+    "func-full_class-sd": "full_sd",
     "func-full_class-full": "full_full",
 }
 
@@ -266,7 +275,7 @@ def main() -> None:
     # Load results
     all_results: dict[str, dict[str, bool]] = {}
     for variant in args.variants:
-        log_path = gen_dir / variant / args.model / "log.jsonl"
+        log_path = gen_dir / args.model / variant / "log.jsonl"
         if not log_path.exists():
             print(f"  SKIP {variant}: {log_path} not found")
             continue
