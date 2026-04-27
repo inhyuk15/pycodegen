@@ -1,0 +1,9 @@
+{
+  "line": 801,
+  "namespace": "fs._url_tools.url_quote",
+  "type": "function",
+  "deps": [
+    {"name": "fs._url_tools._WINDOWS_PLATFORM", "kind": "intra_file", "symbol_type": "variable"},
+    {"name": "fs._url_tools._has_drive_letter", "kind": "intra_file", "symbol_type": "function"}
+  ]
+}

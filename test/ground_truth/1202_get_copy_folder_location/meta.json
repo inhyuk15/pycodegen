@@ -1,0 +1,11 @@
+{
+  "line": 1202,
+  "namespace": "mackup.utils.get_copy_folder_location",
+  "type": "function",
+  "deps": [
+    {"name": "mackup.utils.error", "kind": "intra_file", "symbol_type": "function"},
+    {"name": "mackup.constants.ERROR_UNABLE_TO_FIND_STORAGE", "kind": "cross_file", "symbol_type": "variable"},
+    {"name": "mackup.constants", "kind": "cross_file", "symbol_type": "module_ref (used: ERROR_UNABLE_TO_FIND_STORAGE)"}
+  ],
+  "note": "3rd dep (module) resolves to ERROR_UNABLE_TO_FIND_STORAGE which is dup of 2nd. Should dedup."
+}

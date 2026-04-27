@@ -1,0 +1,8 @@
+{
+  "line": 61,
+  "namespace": "pythonforandroid.prerequisites.PkgConfigPrerequisite.darwin_installer",
+  "type": "method",
+  "deps": [
+    {"name": "pythonforandroid.logger.info", "kind": "cross_file", "symbol_type": "variable_alias"}
+  ]
+}

@@ -1,0 +1,671 @@
+[
+  {
+    "namespace": "pythonforandroid.prerequisites.PkgConfigPrerequisite.darwin_installer",
+    "type": "method",
+    "project_path": "Utilities/python-for-android",
+    "completion_path": "Utilities/python-for-android/pythonforandroid/prerequisites.py",
+    "signature_position": [
+      347,
+      347
+    ],
+    "body_position": [
+      348,
+      349
+    ],
+    "dependency": {
+      "intra_class": [],
+      "intra_file": [],
+      "cross_file": [
+        "pythonforandroid.logger.info"
+      ]
+    },
+    "requirement": {
+      "Functionality": "This function installs Pkg-Config on a macOS system using the Homebrew package manager.",
+      "Arguments": ":param self: PkgConfigPrerequisite. An instance of the PkgConfigPrerequisite class.\n:return: No return values."
+    },
+    "tests": [
+      "tests/test_prerequisites.py::TestPkgConfigPrerequisite::test_darwin_installer"
+    ],
+    "indent": 8,
+    "_line": 61
+  },
+  {
+    "namespace": "boto.rds2.connect_to_region",
+    "type": "function",
+    "project_path": "Internet/boto",
+    "completion_path": "Internet/boto/boto/rds2/__init__.py",
+    "signature_position": [
+      37,
+      37
+    ],
+    "body_position": [
+      51,
+      54
+    ],
+    "dependency": {
+      "intra_class": [],
+      "intra_file": [],
+      "cross_file": [
+        "boto.rds2.layer1.RDSConnection",
+        "boto.regioninfo.connect"
+      ]
+    },
+    "requirement": {
+      "Functionality": "This function connects to a specific region and returns a RDSConnection object to that region. It uses the region name to create a RDSConnection object and returns it.",
+      "Arguments": ":param region_name: str. The name of the region to connect to.\n:param **kw_params: Additional parameters that are passed on to the connect method of the region object.\n:return: boto.rds2.layer1.RDSConnection or None. A connection to the given region, or None if an invalid region name is given."
+    },
+    "tests": [
+      "tests/unit/test_connect_to_region.py::TestRds2Connection::test_connect_to_region"
+    ],
+    "indent": 4,
+    "_line": 136
+  },
+  {
+    "namespace": "barf.arch.arm.parser.ArmParser.parse",
+    "type": "method",
+    "project_path": "Security/barf",
+    "completion_path": "Security/barf/barf/arch/arm/parser.py",
+    "signature_position": [
+      394,
+      394
+    ],
+    "body_position": [
+      398,
+      416
+    ],
+    "dependency": {
+      "intra_class": [
+        "barf.arch.arm.parser.ArmParser._cache"
+      ],
+      "intra_file": [
+        "barf.arch.arm.parser.instruction",
+        "barf.arch.arm.parser.logger"
+      ],
+      "cross_file": []
+    },
+    "requirement": {
+      "Functionality": "This function parses an ARM instruction. It takes an input instruction, converts it to lowercase, and checks if it is present in the cache. If not, it parses the instruction and stores it in the cache. It then returns a deep copy of the parsed instruction. If any exception occurs during parsing, it logs an error message and returns None.",
+      "Arguments": ":param self: ArmParser. An instance of the ArmParser class.\n:param instr: String. The ARM instruction to be parsed.\n:return: The parsed ARM instruction, or None if parsing fails."
+    },
+    "tests": [
+      "tests/arch/arm/test_armparser.py::ArmParser32BitsTests::test_load_store_instructions",
+      "tests/arch/arm/test_armparser.py::ArmParser32BitsTests::test_data_processing_instructions"
+    ],
+    "indent": 8,
+    "_line": 208
+  },
+  {
+    "namespace": "boto.sqs.connect_to_region",
+    "type": "function",
+    "project_path": "Internet/boto",
+    "completion_path": "Internet/boto/boto/sqs/__init__.py",
+    "signature_position": [
+      43,
+      43
+    ],
+    "body_position": [
+      44,
+      47
+    ],
+    "dependency": {
+      "intra_class": [],
+      "intra_file": [],
+      "cross_file": [
+        "boto.regioninfo.connect",
+        "boto.sqs.connection.SQSConnection",
+        "boto.sqs.regioninfo.SQSRegionInfo"
+      ]
+    },
+    "requirement": {
+      "Functionality": "Connect to a specific region using the SQSConnection class. It creates the connection with the specified region name and other optional keyword parameters.",
+      "Arguments": ":param region_name: String. The name of the region to connect to.\n:param kw_params: Keyword arguments. Additional parameters that can be passed to the connect function.\n:return: SQSConnection. The connection object for the specified region."
+    },
+    "tests": [
+      "tests/unit/test_connect_to_region.py::TestSqsConnection::test_connect_to_region"
+    ],
+    "indent": 4,
+    "_line": 222
+  },
+  {
+    "namespace": "imapclient.imapclient.IMAPClient._proc_folder_list",
+    "type": "method",
+    "project_path": "Communications/IMAPClient",
+    "completion_path": "Communications/IMAPClient/imapclient/imapclient.py",
+    "signature_position": [
+      747,
+      750
+    ],
+    "body_position": [
+      751,
+      766
+    ],
+    "dependency": {
+      "intra_class": [
+        "imapclient.imapclient.IMAPClient.folder_encode"
+      ],
+      "intra_file": [],
+      "cross_file": [
+        "imapclient.imap_utf7.decode",
+        "imapclient.response_parser.parse_response",
+        "imapclient.util.chunk"
+      ]
+    },
+    "requirement": {
+      "Functionality": "This function processes the folder data returned by the IMAP server and filters out empty strings and None values. It then parses the response and extracts the flags, delimiter, and name of each folder. If the folder name is an integer, it converts it back to a string. If folder encoding is enabled, it decodes the folder name using UTF-7 encoding. Finally, it returns a list of tuples containing the flags, delimiter, and name of each folder.",
+      "Arguments": ":param self: IMAPClient. An instance of the IMAPClient class.\n:param folder_data: List of bytes. The folder data returned by the IMAP server.\n:return: List of tuples. Each tuple contains the flags, delimiter, and name of a folder."
+    },
+    "tests": [
+      "tests/test_imapclient.py::TestListFolders::test_without_quotes",
+      "tests/test_imapclient.py::TestListFolders::test_unquoted_numeric_folder_name_parsed_as_long",
+      "tests/test_imapclient.py::TestListFolders::test_mixed",
+      "tests/test_imapclient.py::TestListFolders::test_quoted_specials",
+      "tests/test_imapclient.py::TestListFolders::test_blanks"
+    ],
+    "indent": 8,
+    "_line": 245
+  },
+  {
+    "namespace": "boto.glacier.utils.compute_hashes_from_fileobj",
+    "type": "function",
+    "project_path": "Internet/boto",
+    "completion_path": "Internet/boto/boto/glacier/utils.py",
+    "signature_position": [
+      110,
+      110
+    ],
+    "body_position": [
+      128,
+      145
+    ],
+    "dependency": {
+      "intra_class": [],
+      "intra_file": [
+        "boto.glacier.utils.bytes_to_hex",
+        "boto.glacier.utils.tree_hash"
+      ],
+      "cross_file": []
+    },
+    "requirement": {
+      "Functionality": "This function computes the linear and tree hash of a file-like object in a single pass. It reads the file in chunks and updates the linear hash and tree hash accordingly.",
+      "Arguments": ":param fileobj: A file-like object that represents the file to compute the hashes from.\n:param chunk_size: Integer. The size of the chunks to use for the tree hash. It also determines the buffer size used to read from the file. Defaults to 1024 * 1024.\n:return: Tuple. A tuple of (linear_hash, tree_hash), where both hashes are returned in hexadecimal format."
+    },
+    "tests": [
+      "tests/unit/glacier/test_utils.py::TestFileHash::test_compute_hash_tempfile_py3"
+    ],
+    "indent": 4,
+    "_line": 280
+  },
+  {
+    "namespace": "imapclient.imapclient.IMAPClient.folder_status",
+    "type": "method",
+    "project_path": "Communications/IMAPClient",
+    "completion_path": "Communications/IMAPClient/imapclient/imapclient.py",
+    "signature_position": [
+      1002,
+      1002
+    ],
+    "body_position": [
+      1012,
+      1022
+    ],
+    "dependency": {
+      "intra_class": [
+        "imapclient.imapclient.IMAPClient._command_and_check",
+        "imapclient.imapclient.IMAPClient._normalise_folder"
+      ],
+      "intra_file": [
+        "imapclient.imapclient.as_pairs",
+        "imapclient.imapclient.normalise_text_list"
+      ],
+      "cross_file": [
+        "imapclient.response_parser.parse_response"
+      ]
+    },
+    "requirement": {
+      "Functionality": "This function returns the status of a specified folder in an IMAPClient instance. It queries the specified status items \"(\"MESSAGES\", \"RECENT\", \"UIDNEXT\", \"UIDVALIDITY\", \"UNSEEN\")\" for the folder and returns a dictionary with keys matching the queried items.",
+      "Arguments": ":param self: IMAPClient. An instance of the IMAPClient class.\n:param folder: String. The name of the folder to query the status for.\n:param what: List of strings. A sequence of status items to query. It defaults to ['MESSAGES', 'RECENT', 'UIDNEXT', 'UIDVALIDITY', 'UNSEEN'] if not specified.\n:return: Dictionary. A dictionary of the status items for the folder with keys matching the queried items."
+    },
+    "tests": [
+      "tests/test_folder_status.py::TestFolderStatus::test_basic",
+      "tests/test_folder_status.py::TestFolderStatus::test_literal",
+      "tests/test_folder_status.py::TestFolderStatus::test_extra_response"
+    ],
+    "indent": 8,
+    "_line": 311
+  },
+  {
+    "namespace": "pyinfra.api.connect.connect_all",
+    "type": "function",
+    "project_path": "System/pyinfra",
+    "completion_path": "System/pyinfra/pyinfra/api/connect.py",
+    "signature_position": [
+      11,
+      11
+    ],
+    "body_position": [
+      19,
+      46
+    ],
+    "dependency": {
+      "intra_class": [],
+      "intra_file": [],
+      "cross_file": [
+        "pyinfra.api.state.State.activate_host",
+        "pyinfra.api.state.State.fail_hosts",
+        "pyinfra.api.state.State.inventory",
+        "pyinfra.progress.progress_spinner"
+      ]
+    },
+    "requirement": {
+      "Functionality": "This function connects to all the configured servers in parallel. It reads and writes the inventory of the input State instance. It activates the hosts that are initially connected to and updates the state accordingly.",
+      "Arguments": ":param state: State. The state object containing the inventory to connect to.\n:return: No return values."
+    },
+    "tests": [
+      "tests/test_connectors/test_ssh.py::TestSSHConnector::test_connect_with_rsa_ssh_key_password_from_prompt",
+      "tests/test_connectors/test_ssh.py::TestSSHConnector::test_connect_with_missing_ssh_key",
+      "tests/test_api/test_api_facts.py::TestFactsApi::test_get_fact_current_op_global_arguments",
+      "tests/test_connectors/test_ssh.py::TestSSHConnector::test_connect_with_rsa_ssh_key_wrong_password",
+      "tests/test_connectors/test_docker.py::TestDockerConnector::test_connect_all"
+    ],
+    "indent": 4,
+    "_line": 366
+  },
+  {
+    "namespace": "alembic.autogenerate.api.compare_metadata",
+    "type": "function",
+    "project_path": "Database/alembic",
+    "completion_path": "Database/alembic/alembic/autogenerate/api.py",
+    "signature_position": [
+      45,
+      45
+    ],
+    "body_position": [
+      166,
+      167
+    ],
+    "dependency": {
+      "intra_class": [],
+      "intra_file": [
+        "alembic.autogenerate.api.produce_migrations"
+      ],
+      "cross_file": [
+        "alembic.operations.ops.MigrationScript.upgrade_ops",
+        "alembic.runtime.migration.MigrationContext",
+        "alembic.operations.ops.OpContainer.as_diffs"
+      ]
+    },
+    "requirement": {
+      "Functionality": "This function compares a database schema to the schema given in a MetaData instance. It uses a MigrationContext object to provide database connectivity and optional comparison functions for datatypes and server defaults. The function returns a list of \"diff\" directives, each representing individual differences between the two schemas.",
+      "Arguments": ":param context: MigrationContext. An instance of the MigrationContext class that provides database connectivity and comparison functions.\n:param metadata: MetaData. An instance of the MetaData class that represents the database schema to compare against.\n:return: Any. The return format is a list of \"diff\" directives representing the differences between the two schemas."
+    },
+    "tests": [
+      "tests/test_autogen_diffs.py::CompareServerDefaultTest::test_server_default_yes_positives"
+    ],
+    "indent": 4,
+    "_line": 373
+  },
+  {
+    "namespace": "mrjob.util.safeeval",
+    "type": "function",
+    "project_path": "System/mrjob",
+    "completion_path": "System/mrjob/mrjob/util.py",
+    "signature_position": [
+      134,
+      134
+    ],
+    "body_position": [
+      142,
+      167
+    ],
+    "dependency": {
+      "intra_class": [],
+      "intra_file": [],
+      "cross_file": [
+        "mrjob.py2.PY2"
+      ]
+    },
+    "requirement": {
+      "Functionality": "This function evaluates an expression in a safe environment. It creates a dictionary of safe global variables, including True, False, None, set and range or xrange. `open` is specially handled to raise a NameError with the message \"name 'open' is not defined\".",
+      "Arguments": ":param expr: The expression to be evaluated.\n:param globals: dict. Optional dictionary mapping names to values for global variables. Defaults to None.\n:param locals: dict. Optional dictionary mapping names to values for local variables. Defaults to None.\n:return: The result of evaluating the expression."
+    },
+    "tests": [
+      "tests/test_util.py::SafeEvalTestCase::test_range_type",
+      "tests/test_util.py::SafeEvalTestCase::test_no_mischief",
+      "tests/test_util.py::SafeEvalTestCase::test_globals_and_locals",
+      "tests/test_util.py::SafeEvalTestCase::test_simple_data_structures"
+    ],
+    "indent": 4,
+    "_line": 510
+  },
+  {
+    "namespace": "gunicorn.http.body.LengthReader.read",
+    "type": "method",
+    "project_path": "Utilities/gunicorn",
+    "completion_path": "Utilities/gunicorn/gunicorn/http/body.py",
+    "signature_position": [
+      114,
+      114
+    ],
+    "body_position": [
+      115,
+      136
+    ],
+    "dependency": {
+      "intra_class": [
+        "gunicorn.http.body.LengthReader.length",
+        "gunicorn.http.body.LengthReader.unreader"
+      ],
+      "intra_file": [],
+      "cross_file": [
+        "gunicorn.http.unreader.Unreader.read",
+        "gunicorn.http.unreader.Unreader.unread"
+      ]
+    },
+    "requirement": {
+      "Functionality": "This function reads a specified number of bytes from the LengthReader instance. It checks if the input size is valid (checks if size is an integer, and if not, it raises a TypeError \"size must be an integral type\". It then checks if size to be read is negative and raises a ValueError \"Size must be positive.\" if it is. If size is 0, the method returns an empty byte string (b\"\").) The method then creates a Bytes buffer, which is used to store the data read from the stream. It reads data from the unreader until the buffer's size (in bytes) reaches or exceeds the requested size. The buffer is checked in a while loop, and if the size has been reached, the loop is terminated.\nThe data stored in the buffer is then retrieved. The method splits the retrieved data into two parts: ret (the first size bytes) and rest (the remaining bytes).\nThe method then push the rest bytes back into the stream. This allows for future reads to start where the previous read left off.\nFinally, the method updates the length by subtracting the number of bytes read (size) to keep track of how many more bytes can still be read from the stream. The method then returns the ret bytes and.",
+      "Arguments": ":param self: LengthReader. An instance of the LengthReader class.\n:param size: int. The number of bytes to read from the instance.\n:return: bytes. The read data from the instance."
+    },
+    "tests": [
+      "tests/test_http.py::test_length_reader_read",
+      "tests/test_http.py::test_length_reader_read_invalid_size"
+    ],
+    "indent": 8,
+    "_line": 610
+  },
+  {
+    "namespace": "pythonforandroid.graph.get_dependency_tuple_list_for_recipe",
+    "type": "function",
+    "project_path": "Utilities/python-for-android",
+    "completion_path": "Utilities/python-for-android/pythonforandroid/graph.py",
+    "signature_position": [
+      42,
+      42
+    ],
+    "body_position": [
+      46,
+      61
+    ],
+    "dependency": {
+      "intra_class": [],
+      "intra_file": [
+        "pythonforandroid.graph.fix_deplist"
+      ],
+      "cross_file": []
+    },
+    "requirement": {
+      "Functionality": "This function takes a recipe and a blacklist as input and returns a list of dependencies for the recipe. The dependencies are filtered based on the blacklist and converted into tuples and filter out blacklisted items and turn lowercase.",
+      "Arguments": ":param recipe: The recipe for which the dependencies need to be retrieved.\n:param blacklist: Set. A set of items to be filtered out from the dependencies. Defaults to None.\n:return: List of tuples. The dependencies of the recipe after filtering and conversion into tuples."
+    },
+    "tests": [
+      "tests/test_graph.py::test_get_dependency_tuple_list_for_recipe"
+    ],
+    "indent": 4,
+    "_line": 625
+  },
+  {
+    "namespace": "kinto.core.utils.dict_merge",
+    "type": "function",
+    "project_path": "Internet/kinto",
+    "completion_path": "Internet/kinto/kinto/core/utils.py",
+    "signature_position": [
+      187,
+      187
+    ],
+    "body_position": [
+      189,
+      194
+    ],
+    "dependency": {
+      "intra_class": [],
+      "intra_file": [
+        "kinto.core.utils.dict_merge"
+      ],
+      "cross_file": []
+    },
+    "requirement": {
+      "Functionality": "Merge two dictionaries together. It creates a new dictionary by merging the key-value pairs from both input dictionaries. If a key exists in both dictionaries and the value is a Mapping, it recursively merges the nested dictionaries.",
+      "Arguments": ":param a: Dictionary. The first dictionary to merge.\n:param b: Dictionary. The second dictionary to merge.\n:return: Dictionary. The merged dictionary."
+    },
+    "tests": [
+      "tests/core/test_utils.py::DictMergeTest::test_merge"
+    ],
+    "indent": 4,
+    "_line": 789
+  },
+  {
+    "namespace": "fs._url_tools.url_quote",
+    "type": "function",
+    "project_path": "System/fs",
+    "completion_path": "System/fs/fs/_url_tools.py",
+    "signature_position": [
+      13,
+      14
+    ],
+    "body_position": [
+      25,
+      35
+    ],
+    "dependency": {
+      "intra_class": [],
+      "intra_file": [
+        "fs._url_tools._WINDOWS_PLATFORM",
+        "fs._url_tools._has_drive_letter"
+      ],
+      "cross_file": []
+    },
+    "requirement": {
+      "Functionality": "This function quotes a URL, excluding the Windows drive letter if present. On Windows, it separates the drive letter and quotes the Windows path separately. On Unix-like systems, it uses the `~urllib.request.pathname2url` function.",
+      "Arguments": ":param path_snippet: Text. A file path, either relative or absolute.\n:return: Text. The quoted URL."
+    },
+    "tests": [
+      "tests/test_url_tools.py::TestBase::test_quote"
+    ],
+    "indent": 4,
+    "_line": 801
+  },
+  {
+    "namespace": "asyncssh.public_key.SSHKey.generate_x509_user_certificate",
+    "type": "method",
+    "project_path": "Security/asyncssh",
+    "completion_path": "Security/asyncssh/asyncssh/public_key.py",
+    "signature_position": [
+      823,
+      830
+    ],
+    "body_position": [
+      888,
+      892
+    ],
+    "dependency": {
+      "intra_class": [
+        "asyncssh.public_key.SSHKey._generate_x509_certificate"
+      ],
+      "intra_file": [
+        "asyncssh.public_key.X509CertPurposes",
+        "asyncssh.public_key._CertPrincipals",
+        "asyncssh.public_key._Comment",
+        "asyncssh.public_key._Time"
+      ],
+      "cross_file": [
+        "asyncssh.misc.DefTuple"
+      ]
+    },
+    "requirement": {
+      "Functionality": "This function generates a new X.509 user certificate based on the given parameters. It uses the private key of the SSHKey instance to sign the certificate.",
+      "Arguments": ":param self: SSHKey. An instance of the SSHKey class.\n:param user_key: SSHKey. The user's public key.\n:param subject: String. The subject name in the certificate, expressed as a comma-separated list of X.509 `name=value` pairs.\n:param issuer: String (optional). The issuer name in the certificate, expressed as a comma-separated list of X.509 `name=value` pairs. If not specified, the subject name will be used, creating a self-signed certificate.\n:param serial: Integer (optional). The serial number of the certificate, defaulting to a random 64-bit value.\n:param principals: List of strings (optional). The user names this certificate is valid for. By default, it can be used with any user name.\n:param valid_after: Integer (optional). The earliest time the certificate is valid for, defaulting to no restriction on when the certificate starts being valid.\n:param valid_before: Integer (optional). The latest time the certificate is valid for, defaulting to no restriction on when the certificate stops being valid.\n:param purposes: X509CertPurposes (optional). The allowed purposes for this certificate or `None` to not restrict the certificate's purpose, defaulting to 'secureShellClient'.\n:param hash_alg: Tuple of strings (optional). The hash algorithm to use when signing the new certificate, defaulting to SHA256.\n:param comment: Tuple of _Comment (optional). The comment to associate with this certificate. By default, the comment will be set to the comment currently set on user_key.\n:return: SSHX509Certificate. The generated X.509 user certificate."
+    },
+    "tests": [
+      "tests/test_public_key.py::_TestPublicKeyTopLevel::test_generate_errors"
+    ],
+    "indent": 8,
+    "_line": 980
+  },
+  {
+    "namespace": "pyramid.renderers.RendererHelper.render",
+    "type": "method",
+    "project_path": "Internet/pyramid",
+    "completion_path": "Internet/pyramid/src/pyramid/renderers.py",
+    "signature_position": [
+      445,
+      445
+    ],
+    "body_position": [
+      446,
+      464
+    ],
+    "dependency": {
+      "intra_class": [
+        "pyramid.renderers.RendererHelper.name",
+        "pyramid.renderers.RendererHelper.registry",
+        "pyramid.renderers.RendererHelper.renderer"
+      ],
+      "intra_file": [],
+      "cross_file": [
+        "pyramid.csrf.get_csrf_token",
+        "pyramid.events.BeforeRender",
+        "pyramid.registry.Registry.notify"
+      ]
+    },
+    "requirement": {
+      "Functionality": "This function renders a given value using the specified renderer. It first sets up the system values dictionary, which includes information about the view, renderer name, renderer info, context, request, and CSRF token. Then, it notifies the registry about the system values and calls the renderer function to process the value. The render result is returned.",
+      "Arguments": ":param self: RendererHelper. An instance of the RendererHelper class.\n:param value: The value to be rendered.\n:param system_values: Dictionary. A dictionary containing system values such as view, renderer name, renderer info, context, request, and CSRF token.\n:param request: Optional. The request object.\n:return: The rendered result."
+    },
+    "tests": [
+      "tests/test_renderers.py::TestRendererHelper::test_render_explicit_registry",
+      "tests/test_renderers.py::TestRendererHelper::test_render_system_values_is_None"
+    ],
+    "indent": 8,
+    "_line": 1032
+  },
+  {
+    "namespace": "aiohappybase._util.camel_case_to_pep8",
+    "type": "function",
+    "project_path": "Database/happybase",
+    "completion_path": "Database/happybase/aiohappybase/_util.py",
+    "signature_position": [
+      21,
+      21
+    ],
+    "body_position": [
+      23,
+      24
+    ],
+    "dependency": {
+      "intra_class": [],
+      "intra_file": [
+        "aiohappybase._util.CAPITALS"
+      ],
+      "cross_file": []
+    },
+    "requirement": {
+      "Functionality": "Convert a camel cased name to PEP8 style. It replaces each capital letter in the input string with an underscore followed by the lowercase version of the letter (Do not underline the first letter).",
+      "Arguments": ":param name: String. The camel cased name to be converted.\n:return: String. The PEP8 style converted name."
+    },
+    "tests": [
+      "tests/test_util.py::TestUtil::test_camel_case_to_pep8"
+    ],
+    "indent": 4,
+    "_line": 1096
+  },
+  {
+    "namespace": "mackup.utils.get_copy_folder_location",
+    "type": "function",
+    "project_path": "Utilities/mackup",
+    "completion_path": "Utilities/mackup/mackup/utils.py",
+    "signature_position": [
+      256,
+      256
+    ],
+    "body_position": [
+      263,
+      281
+    ],
+    "dependency": {
+      "intra_class": [],
+      "intra_file": [
+        "mackup.utils.error"
+      ],
+      "cross_file": [
+        "mackup.constants.ERROR_UNABLE_TO_FIND_STORAGE",
+        "mackup.constants"
+      ]
+    },
+    "requirement": {
+      "Functionality": "This function tries to locate the Copy folder by searching for the Copy settings file. It then connects to the settings database, executes a query to retrieve the value with the option that is csmRootPath from Copy folder path, and returns it.",
+      "Arguments": ":param: No input parameters.\n:return: str. The full path to the current Copy folder."
+    },
+    "tests": [
+      "tests/utils_test.py::TestMackup::test_failed_backup_location"
+    ],
+    "indent": 4,
+    "_line": 1202
+  },
+  {
+    "namespace": "bplustree.memory.WAL.rollback",
+    "type": "method",
+    "project_path": "Database/bplustree",
+    "completion_path": "Database/bplustree/bplustree/memory.py",
+    "signature_position": [
+      423,
+      424
+    ],
+    "body_position": [
+      425,
+      426
+    ],
+    "dependency": {
+      "intra_class": [
+        "bplustree.memory.WAL._add_frame",
+        "bplustree.memory.WAL._not_committed_pages"
+      ],
+      "intra_file": [
+        "bplustree.memory.FrameType",
+        "bplustree.memory.FrameType.ROLLBACK"
+      ],
+      "cross_file": []
+    },
+    "requirement": {
+      "Functionality": "If there are uncommitted pages in the WAL, a rollback frame is added.",
+      "Arguments": ":param self: WAL. An instance of the WAL class.\n:return: No return values."
+    },
+    "tests": [
+      "tests/test_memory.py::test_wal_rollback"
+    ],
+    "indent": 8,
+    "_line": 1211
+  },
+  {
+    "namespace": "sacred.observers.file_storage.FileStorageObserver.resource_event",
+    "type": "method",
+    "project_path": "Utilities/sacred",
+    "completion_path": "Utilities/sacred/sacred/observers/file_storage.py",
+    "signature_position": [
+      291,
+      291
+    ],
+    "body_position": [
+      292,
+      294
+    ],
+    "dependency": {
+      "intra_class": [
+        "sacred.observers.file_storage.FileStorageObserver.find_or_save",
+        "sacred.observers.file_storage.FileStorageObserver.resource_dir",
+        "sacred.observers.file_storage.FileStorageObserver.run_entry",
+        "sacred.observers.file_storage.FileStorageObserver.save_json"
+      ],
+      "intra_file": [],
+      "cross_file": []
+    },
+    "requirement": {
+      "Functionality": "This function handles a resource event by finding or saving the file, updating the 'resources' field of the running entry, and saving the updated running entry as 'run.json'.",
+      "Arguments": ":param self: FileStorageObserver. An instance of the FileStorageObserver class.\n:param filename: str. The name of the file for the resource event.\n:return: No return values."
+    },
+    "tests": [
+      "tests/test_observers/test_file_storage_observer.py::test_fs_observer_resource_event_does_not_duplicate",
+      "tests/test_observers/test_file_storage_observer.py::test_no_duplicate"
+    ],
+    "indent": 8,
+    "_line": 1215
+  }
+]

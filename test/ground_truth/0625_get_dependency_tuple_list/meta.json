@@ -1,0 +1,8 @@
+{
+  "line": 625,
+  "namespace": "pythonforandroid.graph.get_dependency_tuple_list_for_recipe",
+  "type": "function",
+  "deps": [
+    {"name": "pythonforandroid.graph.fix_deplist", "kind": "intra_file", "symbol_type": "function"}
+  ]
+}

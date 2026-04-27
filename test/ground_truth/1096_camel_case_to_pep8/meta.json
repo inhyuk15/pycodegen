@@ -1,0 +1,8 @@
+{
+  "line": 1096,
+  "namespace": "aiohappybase._util.camel_case_to_pep8",
+  "type": "function",
+  "deps": [
+    {"name": "aiohappybase._util.CAPITALS", "kind": "intra_file", "symbol_type": "variable"}
+  ]
+}

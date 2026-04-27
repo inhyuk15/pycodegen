@@ -1,0 +1,12 @@
+{
+  "line": 1215,
+  "namespace": "sacred.observers.file_storage.FileStorageObserver.resource_event",
+  "type": "method",
+  "deps": [
+    {"name": "FileStorageObserver.find_or_save", "kind": "intra_class", "symbol_type": "method"},
+    {"name": "FileStorageObserver.resource_dir", "kind": "intra_class", "symbol_type": "instance_attr (set in initialize)"},
+    {"name": "FileStorageObserver.run_entry", "kind": "intra_class", "symbol_type": "instance_attr (set in initialize)"},
+    {"name": "FileStorageObserver.save_json", "kind": "intra_class", "symbol_type": "method"}
+  ],
+  "note": "Target is method of FileStorageObserver. Skeleton must redact target body. Instance attrs (resource_dir, run_entry) are visible only through __init__/initialize body which sd_sd hides. For full_full, target body redacted to '...'."
+}

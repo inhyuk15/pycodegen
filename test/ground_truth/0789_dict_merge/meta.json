@@ -1,0 +1,9 @@
+{
+  "line": 789,
+  "namespace": "kinto.core.utils.dict_merge",
+  "type": "function",
+  "deps": [
+    {"name": "kinto.core.utils.dict_merge", "kind": "intra_file", "symbol_type": "SELF_REFERENCE"}
+  ],
+  "note": "Recursive call to itself. dep == target, so including = answer leak. Skip both modes."
+}

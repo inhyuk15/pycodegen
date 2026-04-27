@@ -1,0 +1,1 @@
+info = logger.info

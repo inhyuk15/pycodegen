@@ -1,0 +1,8 @@
+{
+  "line": 510,
+  "namespace": "mrjob.util.safeeval",
+  "type": "function",
+  "deps": [
+    {"name": "mrjob.py2.PY2", "kind": "cross_file", "symbol_type": "variable"}
+  ]
+}

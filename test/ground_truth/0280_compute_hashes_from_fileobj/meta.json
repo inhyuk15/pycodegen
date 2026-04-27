@@ -1,0 +1,9 @@
+{
+  "line": 280,
+  "namespace": "boto.glacier.utils.compute_hashes_from_fileobj",
+  "type": "function",
+  "deps": [
+    {"name": "boto.glacier.utils.bytes_to_hex", "kind": "intra_file", "symbol_type": "function"},
+    {"name": "boto.glacier.utils.tree_hash", "kind": "intra_file", "symbol_type": "function"}
+  ]
+}
