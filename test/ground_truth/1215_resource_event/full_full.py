@@ -265,8 +265,7 @@ class FileStorageObserver(RunObserver):
         self.save_json(self.run_entry, "run.json")
         self.render_template()
 
-    def resource_event(self, filename):
-        ...
+    # resource_event (target, hidden)
 
     def artifact_event(self, name, filename, metadata=None, content_type=None):
         self.save_file(filename, name)

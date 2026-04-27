@@ -148,9 +148,26 @@ def extract_symbol_from_ast(
 
 
 def _node_source(node: ast.AST, source_lines: list[str]) -> str:
-    """Return the dedented source text for an AST node."""
-    lines = source_lines[node.lineno - 1 : node.end_lineno]
+    """Return the dedented source text for an AST node, including decorators."""
+    start = _node_start_lineno(node) if hasattr(node, "decorator_list") else node.lineno
+    lines = source_lines[start - 1 : node.end_lineno]
     return textwrap.dedent("\n".join(lines))
+
+
+def _is_docstring(stmt: ast.AST) -> bool:
+    return (
+        isinstance(stmt, ast.Expr)
+        and isinstance(stmt.value, ast.Constant)
+        and isinstance(stmt.value.value, str)
+    )
+
+
+def _node_start_lineno(node: ast.AST) -> int:
+    """Earliest source line of a function/class, including decorators."""
+    decos = getattr(node, "decorator_list", []) or []
+    if decos:
+        return min(d.lineno for d in decos)
+    return node.lineno
 
 
 def _format_function(
@@ -158,23 +175,28 @@ def _format_function(
     source_lines: list[str],
     mode: str,
 ) -> Optional[str]:
+    start_lineno = _node_start_lineno(node)
+
     if mode == "full":
-        return _node_source(node, source_lines)
+        # Re-implement _node_source but starting from the decorator line.
+        lines = source_lines[start_lineno - 1 : node.end_lineno]
+        return textwrap.dedent("\n".join(lines))
 
     if mode == "sig_doc":
-        sig_line = source_lines[node.lineno - 1]
-        sig_lines = [sig_line]
-        idx = node.lineno
-        while not sig_line.rstrip().endswith(":") and idx < len(source_lines):
-            sig_line = source_lines[idx]
-            sig_lines.append(sig_line)
-            idx += 1
+        if not node.body:
+            return None
+        first_body = node.body[0]
 
+        # Signature: from start (decorator or def) to first body stmt.
+        sig_end_excl = first_body.lineno - 1
+        sig_lines = source_lines[start_lineno - 1 : sig_end_excl]
         result = textwrap.dedent("\n".join(sig_lines))
 
-        docstring = ast.get_docstring(node)
-        if docstring:
-            result += '\n    """' + docstring + '"""'
+        # Docstring: preserve raw source formatting (re-indented to 4 spaces).
+        if _is_docstring(first_body):
+            doc_lines = source_lines[first_body.lineno - 1 : first_body.end_lineno]
+            doc_text = textwrap.dedent("\n".join(doc_lines))
+            result += "\n" + textwrap.indent(doc_text, "    ")
 
         result += "\n    ..."
         return result
@@ -191,21 +213,26 @@ def _format_class(
         return _node_source(node, source_lines)
 
     if mode in ("sig_doc", "sd_init"):
-        sig_line = source_lines[node.lineno - 1]
-        sig_lines = [sig_line]
-        idx = node.lineno
-        while not sig_line.rstrip().endswith(":") and idx < len(source_lines):
-            sig_line = source_lines[idx]
-            sig_lines.append(sig_line)
-            idx += 1
+        if not node.body:
+            return None
+        first_body = node.body[0]
 
+        # Signature: class header up to first body stmt (include decorators,
+        # handle multi-line bases).
+        start_lineno = _node_start_lineno(node)
+        sig_end_excl = first_body.lineno - 1
+        sig_lines = source_lines[start_lineno - 1 : sig_end_excl]
         result = textwrap.dedent("\n".join(sig_lines))
 
-        docstring = ast.get_docstring(node)
-        if docstring:
-            result += '\n    """' + docstring + '"""'
+        # Docstring (preserve raw formatting).
+        body_iter_start = 0
+        if _is_docstring(first_body):
+            doc_lines = source_lines[first_body.lineno - 1 : first_body.end_lineno]
+            doc_text = textwrap.dedent("\n".join(doc_lines))
+            result += "\n" + textwrap.indent(doc_text, "    ")
+            body_iter_start = 1
 
-        for child in node.body:
+        for child in node.body[body_iter_start:]:
             if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 # sd_init: __init__ is shown in full, others sig_doc.
                 if mode == "sd_init" and child.name == "__init__":
@@ -220,6 +247,107 @@ def _format_class(
         return result
 
     return None
+
+
+def extract_class_with_dep_members(
+    file_path: str,
+    class_name: str,
+    dep_members: list[str],
+    mode: str,
+    redact_member: Optional[str] = None,
+) -> Optional[str]:
+    """Extract a class focused on specific dep members.
+
+    - mode='sig_doc': class skeleton (all method sigs + class attrs) +
+                      each dep method appended as its FULL body.
+                      Non-method dep members are skipped (instance attrs are
+                      implicit in the skeleton's signatures).
+    - mode='full':    full class source. If ``redact_member`` is given,
+                      that method's body is replaced with ``...`` to avoid
+                      leaking the target answer.
+    """
+    source, tree = _parse_file(file_path)
+    if source is None or tree is None:
+        return None
+    source_lines = source.splitlines()
+
+    class_node: Optional[ast.ClassDef] = None
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef) and node.name == class_name:
+            class_node = node
+            break
+    if class_node is None:
+        return None
+
+    if mode == "full":
+        return _format_class_with_redact(class_node, source_lines, redact_member)
+
+    if mode in ("sig_doc", "sd_init"):
+        skeleton = _format_class(class_node, source_lines, mode)
+        if skeleton is None:
+            return None
+        parts = [skeleton]
+        for name in dep_members:
+            if name == redact_member:
+                continue  # don't reveal target body
+            if mode == "sd_init" and name == "__init__":
+                continue  # already shown in full inside the skeleton
+            for child in class_node.body:
+                if (
+                    isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and child.name == name
+                ):
+                    full = _format_function(child, source_lines, "full")
+                    if full:
+                        parts.append(full)
+                    break
+        return "\n\n".join(parts)
+
+    return None
+
+
+def _format_class_with_redact(
+    node: ast.ClassDef,
+    source_lines: list[str],
+    redact_member: Optional[str],
+) -> str:
+    """Return full class source. If ``redact_member`` matches a method name,
+    the entire method (decorators + signature + body) is removed, leaving
+    only a single comment placeholder so the target answer is fully hidden.
+    """
+    if not redact_member:
+        return _node_source(node, source_lines)
+
+    target_method: Optional[ast.AST] = None
+    for child in node.body:
+        if (
+            isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and child.name == redact_member
+        ):
+            target_method = child
+            break
+    if target_method is None:
+        return _node_source(node, source_lines)
+
+    # Class block as-is, then drop the lines belonging to the target method
+    # (including any decorators that precede the def).
+    class_lines = source_lines[node.lineno - 1 : node.end_lineno]
+    method_start_lineno = _node_start_lineno(target_method)
+    method_end_lineno = target_method.end_lineno
+
+    start_idx = method_start_lineno - node.lineno  # 0-based within class_lines
+    end_idx = method_end_lineno - node.lineno  # inclusive
+
+    # Indent placeholder using the column of the method's def (or first deco).
+    raw = source_lines[method_start_lineno - 1]
+    indent_str = raw[: len(raw) - len(raw.lstrip())]
+
+    new_lines = (
+        class_lines[:start_idx]
+        + [indent_str + f"# {redact_member} (target, hidden)"]
+        + class_lines[end_idx + 1 :]
+    )
+    return textwrap.dedent("\n".join(new_lines))
 
 
 def _find_member(

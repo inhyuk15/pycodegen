@@ -13,7 +13,27 @@ class FileStorageObserver(RunObserver):
         copy_artifacts: bool = True,
         copy_sources: bool = True,
     ):
-        ...
+        basedir = Path(basedir)
+        resource_dir = resource_dir or basedir / "_resources"
+        source_dir = source_dir or basedir / "_sources"
+        if template is not None:
+            if not os.path.exists(template):
+                raise FileNotFoundError(
+                    "Couldn't find template file '{}'".format(template)
+                )
+        else:
+            template = basedir / "template.html"
+            if not template.exists():
+                template = None
+        self.initialize(
+            basedir,
+            resource_dir,
+            source_dir,
+            template,
+            priority,
+            copy_artifacts,
+            copy_sources,
+        )
     def initialize(
         self,
         basedir,

@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Optional
 
 from ast_extractor import (
+    extract_class_with_dep_members,
     extract_symbol_from_ast,
     find_used_attrs_on_module,
     resolve_module_local_name,
@@ -92,6 +93,32 @@ def extract_dependency_code(
 # ---------------------------------------------------------------------------
 
 
+def _resolve_class_member(repo_path: str, symbol: str) -> Optional[tuple[str, str, str]]:
+    """Resolve ``symbol`` to ``(file_path, class_name, member_name)`` if it
+    refers to a member of a class defined in some file under ``repo_path``.
+
+    Returns ``None`` when ``symbol`` is not a class-member reference (e.g.
+    a standalone function, module-level variable, or unresolvable name).
+    """
+    file_path, remainder = resolve_symbol_file(repo_path, symbol)
+    if file_path is None or not remainder:
+        return None
+    parts = remainder.split(".")
+    if len(parts) < 2:
+        return None
+    # Confirm parts[0] is actually a class in that file (cheap AST check).
+    try:
+        with open(file_path, "r", encoding="utf-8", errors="replace") as fh:
+            import ast as _ast
+            tree = _ast.parse(fh.read())
+        for node in _ast.walk(tree):
+            if isinstance(node, _ast.ClassDef) and node.name == parts[0]:
+                return file_path, parts[0], parts[1]
+    except Exception:
+        return None
+    return None
+
+
 def build_context_string(
     sample: dict,
     func_mode: str = "full",
@@ -100,6 +127,17 @@ def build_context_string(
     """Collect all dependency code blocks for a single sample."""
     dep = sample["dependency"]
     project_path = sample["project_path"]
+    target_ns = sample.get("namespace")
+    target_type = sample.get("type", "function")
+    repo_path = str(SOURCE_CODE_DIR / project_path)
+
+    # Identify target's class & method (for redaction in full mode).
+    target_class_short: Optional[str] = None
+    target_method_name: Optional[str] = None
+    if target_type == "method" and target_ns:
+        ns_parts = target_ns.split(".")
+        target_method_name = ns_parts[-1]
+        target_class_short = ns_parts[-2] if len(ns_parts) >= 2 else None
 
     all_symbols = (
         dep.get("intra_class", [])
@@ -115,15 +153,43 @@ def build_context_string(
     ) if "completion_path" in sample else None
     body_position = sample.get("body_position")
 
+    # Dedup + skip self-reference.
     seen: set[str] = set()
     unique_symbols: list[str] = []
     for s in all_symbols:
+        if s == target_ns:
+            continue
         if s not in seen:
             seen.add(s)
             unique_symbols.append(s)
 
-    code_blocks: list[str] = []
+    # Group Class.member deps so a class is emitted exactly once with all
+    # interesting members (and target body redacted if needed).
+    class_groups: dict[tuple[str, str], list[str]] = {}
+    standalone: list[str] = []
     for sym in unique_symbols:
+        resolved = _resolve_class_member(repo_path, sym)
+        if resolved is not None:
+            file_path, cls_name, member_name = resolved
+            class_groups.setdefault((file_path, cls_name), []).append(member_name)
+        else:
+            standalone.append(sym)
+
+    code_blocks: list[str] = []
+
+    # Class-grouped deps.
+    for (file_path, cls_name), members in class_groups.items():
+        redact = target_method_name if cls_name == target_class_short else None
+        block = extract_class_with_dep_members(
+            file_path, cls_name, members,
+            mode=class_mode,
+            redact_member=redact,
+        )
+        if block:
+            code_blocks.append(block)
+
+    # Remaining (function / variable / module-ref) deps.
+    for sym in standalone:
         code = extract_dependency_code(
             project_path, sym, func_mode, class_mode,
             target_func_file=target_func_file,
@@ -132,7 +198,15 @@ def build_context_string(
         if code:
             code_blocks.append(code)
 
-    return "\n\n".join(code_blocks)
+    # Final code-level dedup.
+    seen_blocks: set[str] = set()
+    unique_blocks: list[str] = []
+    for b in code_blocks:
+        if b not in seen_blocks:
+            seen_blocks.add(b)
+            unique_blocks.append(b)
+
+    return "\n\n".join(unique_blocks)
 
 
 def inject_context(original_prompt: str, context: str) -> str:
